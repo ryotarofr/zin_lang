@@ -74,17 +74,12 @@ pub struct TextDetail {
     pub style: TextStyle,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum LayoutStyle {
+    #[default]
     Start,
     Center,
     End,
-}
-
-impl Default for LayoutStyle {
-    fn default() -> Self {
-        LayoutStyle::Start
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +99,7 @@ pub struct HmdDocument {
     pub flat_tree: FlatTree,
     pub generation_counter: usize,
     pub line_to_id_map: HashMap<usize, String>, // line_number -> node_id mapping
+    pub prev_line_id: Option<String>,
 }
 
 impl Default for HmdDocument {
@@ -118,32 +114,29 @@ impl HmdDocument {
             flat_tree: HashMap::new(),
             generation_counter: 0,
             line_to_id_map: HashMap::new(),
+            prev_line_id: None,
         }
     }
-
     pub fn next_generation(&mut self) -> String {
         self.generation_counter += 1;
         self.generation_counter.to_string()
     }
-
+    pub fn set_prev_line_id(&mut self, id: String) {
+        self.prev_line_id = Some(id);
+    }
     pub fn add_node(&mut self, mut node: AstNode) -> String {
         let id = self.next_generation();
-        
-        // Set parent_id based on previous line number
+        // Set parent_id using cached last node ID (O(1) instead of HashMap lookup)
         if node.line_number > 1 {
-            let previous_line = node.line_number - 1;
-            if let Some(parent_id) = self.line_to_id_map.get(&previous_line) {
-                node.parent_id = Some(parent_id.clone());
-            }
+            node.parent_id = self.prev_line_id.clone();
         }
-        
         // Update line to ID mapping
         self.line_to_id_map.insert(node.line_number, id.clone());
-        
         self.flat_tree.insert(id.clone(), node);
+        // Cache this node ID as the last added node
+        // self.last_node_id = Some(id.clone());
         id
     }
-    
     pub fn get_node_by_line(&self, line_number: usize) -> Option<&AstNode> {
         if let Some(id) = self.line_to_id_map.get(&line_number) {
             self.flat_tree.get(id)
@@ -151,7 +144,6 @@ impl HmdDocument {
             None
         }
     }
-    
     pub fn get_parent_node(&self, node_id: &str) -> Option<&AstNode> {
         if let Some(node) = self.flat_tree.get(node_id) {
             if let Some(parent_id) = &node.parent_id {
@@ -167,7 +159,7 @@ pub struct HmdParser;
 impl HmdParser {
     pub fn parse_line_type(input: &str) -> Option<LineType> {
         let trimmed = input.trim();
-        
+
         match trimmed {
             // Basic forms
             "Paragraph" => Some(LineType::Paragraph),
@@ -183,7 +175,7 @@ impl HmdParser {
             "Quote" => Some(LineType::Quote),
             "Table" => Some(LineType::Table),
             "Row" => Some(LineType::Row),
-            
+
             // Abbreviated forms
             "P" => Some(LineType::Paragraph),
             "H1" => Some(LineType::Heading1),
@@ -198,17 +190,17 @@ impl HmdParser {
             "Q" => Some(LineType::Quote),
             "T" => Some(LineType::Table),
             "R" => Some(LineType::Row),
-            
+
             _ => None,
         }
     }
-    
+
     pub fn parse_hmd_line(line: &str, line_number: usize) -> Option<AstNode> {
         if let Some(colon_pos) = line.find(':') {
             let (line_type_str, content) = line.split_at(colon_pos);
             let line_type_str = line_type_str.trim();
             let content = content.trim_start_matches(':').trim();
-            
+
             if let Some(line_type) = Self::parse_line_type(line_type_str) {
                 return Some(AstNode {
                     parent_id: None,
@@ -223,19 +215,19 @@ impl HmdParser {
         }
         None
     }
-    
+
     pub fn parse_text_details(_text: &str, details_str: &str) -> Vec<TextDetail> {
         let mut details = Vec::new();
-        
+
         // Simple parser for text details like "Link[0:2] Bold[6:10]"
         let parts: Vec<&str> = details_str.split_whitespace().collect();
-        
+
         for part in parts {
             if let Some(bracket_start) = part.find('[') {
                 if let Some(bracket_end) = part.find(']') {
                     let text_type_str = &part[..bracket_start];
                     let range_str = &part[bracket_start + 1..bracket_end];
-                    
+
                     if let Some(text_type) = Self::parse_text_type(text_type_str) {
                         if let Some((start, end)) = Self::parse_range(range_str) {
                             details.push(TextDetail {
@@ -250,10 +242,10 @@ impl HmdParser {
                 }
             }
         }
-        
+
         details
     }
-    
+
     fn parse_text_type(input: &str) -> Option<TextType> {
         match input {
             "Link" => Some(TextType::Link),
@@ -263,12 +255,12 @@ impl HmdParser {
             _ => None,
         }
     }
-    
+
     fn parse_range(range_str: &str) -> Option<(usize, usize)> {
         if let Some(colon_pos) = range_str.find(':') {
             let (start_str, end_str) = range_str.split_at(colon_pos);
             let end_str = end_str.trim_start_matches(':');
-            
+
             if let (Ok(start), Ok(end)) = (start_str.parse::<usize>(), end_str.parse::<usize>()) {
                 return Some((start, end));
             }
@@ -315,13 +307,13 @@ impl HmdFormatter {
             }
         }
     }
-    
+
     pub fn format_node(node: &AstNode, abbreviated: bool) -> String {
         let type_name = Self::format_line_type(&node.line_type, abbreviated);
         let padding = if abbreviated { 3 } else { 11 };
-        
+
         let mut result = format!("{:width$} : {}", type_name, node.text, width = padding);
-        
+
         if !node.text_details.is_empty() {
             result.push('\n');
             for detail in &node.text_details {
@@ -337,10 +329,10 @@ impl HmdFormatter {
                 result.push('\n');
             }
         }
-        
+
         result
     }
-    
+
     fn format_text_type(text_type: &TextType) -> &'static str {
         match text_type {
             TextType::Link => "Link",
@@ -357,7 +349,7 @@ impl AutoComplete {
     pub fn get_suggestions(input: &str) -> Vec<&'static str> {
         let input_lower = input.to_lowercase();
         let mut suggestions = Vec::new();
-        
+
         match input_lower.as_str() {
             "p" => suggestions.push("Paragraph"),
             "h" => {
@@ -372,56 +364,59 @@ impl AutoComplete {
             "t" => suggestions.extend_from_slice(&["Table", "TodoList"]),
             _ => {}
         }
-        
+
         suggestions
     }
 }
 
 fn main() {
     println!("HMD - Hierarchical Markdown Language");
-    
+
     let mut document = HmdDocument::new();
-    
+
     // Test parser with parent_id functionality
     println!("\n=== Parser Test with Parent ID ===");
     let test_lines = [
         "Paragraph : Hello World",
-        "H1 : This is a heading", 
+        "H1 : This is a heading",
         "P : Short paragraph",
         "UL : List item",
         "P : Another paragraph",
     ];
-    
+
     let mut node_ids = Vec::new();
     for (i, line) in test_lines.iter().enumerate() {
         if let Some(node) = HmdParser::parse_hmd_line(line, i + 1) {
             let node_id = document.add_node(node);
             node_ids.push(node_id.clone());
-            
+
             let stored_node = document.flat_tree.get(&node_id).unwrap();
             println!("Line {}: {} -> Node ID: {}", i + 1, line, node_id);
             println!("  Parent ID: {:?}", stored_node.parent_id);
-            
+
             if let Some(parent) = document.get_parent_node(&node_id) {
                 println!("  Parent text: '{}'", parent.text);
             }
             println!();
         }
     }
-    
+
     // Test parent-child relationship queries
     println!("=== Parent-Child Relationship Test ===");
     for node_id in &node_ids {
         let node = document.flat_tree.get(node_id).unwrap();
-        println!("Node {} (line {}): '{}'", node_id, node.line_number, node.text);
-        
+        println!(
+            "Node {} (line {}): '{}'",
+            node_id, node.line_number, node.text
+        );
+
         if let Some(parent_node) = document.get_parent_node(node_id) {
             println!("  Has parent: '{}'", parent_node.text);
         } else {
             println!("  No parent (root node)");
         }
     }
-    
+
     // Test auto-completion
     println!("\n=== Auto-completion Test ===");
     let test_inputs = ["p", "h", "l"];
@@ -429,7 +424,7 @@ fn main() {
         let suggestions = AutoComplete::get_suggestions(input);
         println!("{} -> {:?}", input, suggestions);
     }
-    
+
     // Test text details parsing
     println!("\n=== Text Details Test ===");
     let details = HmdParser::parse_text_details("Hello World", "Link[0:4] Bold[6:10]");
