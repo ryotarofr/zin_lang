@@ -2,13 +2,15 @@
 
 ## 拡張子
 
-.hmd - Hierarchical Markdown（階層的マークダウン）
+.hmdx - Hierarchical Markdown（階層的マークダウン）
+
+# 描画部分の定義
 
 ## PrimaryNode
 
 ### 基本形
-
 ```hmd
+HMDX : title
 Paragraph : text
 Headding1 : text
 Headding2 : text
@@ -26,6 +28,7 @@ Row       : | text | text | text |
 ### 省略形
 
 ```hmd
+HMDX : title
 P : text
 H1 : text
 H2 : text
@@ -46,6 +49,15 @@ Example
 Paragraph : Hello World
 P : Hello World
 ```
+
+### 詳細
+1. 
+HMDX : title
+ここからが描画部分のコードとなる。
+その時の識別子として「HMDX :」を使う。
+
+2. 
+text の部分はすべて文字列として扱う。
 
 ## SecondaryNode
 
@@ -93,7 +105,38 @@ P : Hello World
     Url[https://~]
 ```
 
-## AST
+
+# 変数
+1. 変数、関数定義位置
+「HMDX : title」の上で定義する必要がある
+
+2. 予約文字
+PrimaryNode に定義したものと以下の変数
+```hmdx
+// ログ出力用
+Log : 
+```
+
+3. 代入
+型が異なる値であっても同じ変数に再代入できる
+```hmdx
+hoge: 1
+hoge: aiueo
+Log: ログ | hoge |　// aiueo
+huga: タイトル
+
+HMDX : | huga |
+// ...
+```
+
+4. 変数のライフタイム
+ファイル内で借用が無くなるまで
+
+
+## 関数
+
+
+# AST
 
 ```rust
 // 行スタイル(マークダウン踏襲)
