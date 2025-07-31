@@ -1,16 +1,21 @@
-## system design
+- [] Rust で初期コンパイラを作る
+- [] 初期コンパイラを使って、セルフコンパイラを作る
+- [] 以降の描画処理を作る(仮想DOM → 実DOM生成 → ブラウザ描画 → ユーザー操作 → 状態更新 → 差分計算 → パッチ適用)
+
+## 言語名
+zin
 
 ## 拡張子
 
-.hmdx - Hierarchical Markdown（階層的マークダウン）
+.zin
 
 # 描画部分の定義
 
 ## PrimaryNode
 
 ### 基本形
-```hmd
-HMDX : title
+```zin
+ZIN : title
 Paragraph : text
 Headding1 : text
 Headding2 : text
@@ -27,8 +32,8 @@ Row       : | text | text | text |
 
 ### 省略形
 
-```hmd
-HMDX : title
+```zin
+ZIN : title
 P : text
 H1 : text
 H2 : text
@@ -45,14 +50,14 @@ R : | text | text | text |
 
 Example
 
-```hmd
-Paragraph : Hello World
-P : Hello World
+```zin
+Paragraph : "Hello World"
+P : "Hello World"
 ```
 
 ### 詳細
 1. 
-HMDX : title
+zin : title
 ここからが描画部分のコードとなる。
 その時の識別子として「HMDX :」を使う。
 
@@ -70,12 +75,12 @@ Strike[startIndex:endIndex]
 
 Example
 
-```hmd
-Paragraph : Hello World
+```zin
+Paragraph : "Hello World"
   Bold[0:4]
   Italic[6:10]
 
-P : Hello World
+P : "Hello World"
   Bold[0:4]
   Italic[6:10]
 ```
@@ -89,18 +94,18 @@ SecondaryNode とセットで使う。
 
 Example
 
-```hmd
-Paragraph : Hello World
+```zin
+Paragraph : "Hello World"
   Link[0:4] Url[https://~]
 
-Paragraph : Hello World
+Paragraph : "Hello World"
   Link[0:4]
     Url[https://~]
 
-P : Hello World
+P : "Hello World"
   Link[0:4] Url[https://~]
 
-P : Hello World
+P : "Hello World"
   Link[0:4]
     Url[https://~]
 ```
@@ -112,20 +117,20 @@ P : Hello World
 
 2. 予約文字
 PrimaryNode に定義したものと以下の変数
-```hmdx
+```zin
 // ログ出力用
 Log : 
 ```
 
 3. 代入
 型が異なる値であっても同じ変数に再代入できる
-```hmdx
+```zin
 hoge: 1
-hoge: aiueo
+hoge: "aiueo"
 Log: ログ | hoge |　// aiueo
 huga: タイトル
 
-HMDX : | huga |
+ZIN : | huga |
 // ...
 ```
 
@@ -134,6 +139,58 @@ HMDX : | huga |
 
 
 ## 関数
+```zin
+hoge |arg1, arg2|:
+  hoge2: 1
+  hoge3 : arg1 + arg2 + hoge2
+  hoge3
+
+// もしくは
+hoge |arg1, arg2|:
+  hoge2: 1
+  arg1 + arg2 + hoge2
+```
+
+## データ型
+```zin
+// int
+hoge : 1
+// str
+hoge : "hello"
+// bool
+hoge : True
+// float
+hoge : 1.1
+// list
+hoge : [a, b, c]
+// dict
+hoge : {key1: "hello", key2: 2}
+```
+
+## データ操作
+```zin
+// if
+hoge > 1 : trueの時
+         : falseの時
+
+hoge > 1  : trueの時
+hoge < 10 : else ifの条件の時
+
+// ネストしたifはインデントを下げる
+hoge > 1 : trueの時
+  hoge > 2 : trueの時
+           : falseの時
+: falseの時
+
+//
+hoge > 1 : trueの時 |> hoge > 2 : trueの時 |> hoge > 3 : trueの時
+           : falseの時
+: falseの時
+
+// for
+
+
+```
 
 
 # AST
@@ -247,12 +304,12 @@ text の文字列が長い場合に、IME 入力の場合は「確定時」、�
 
 ### 基本形
 
-予約変数(11 文字左詰め):空白 1 個, 任意文字 \***\*\_\_\_\*\***:\_Hello World
+予約変数(11 文字左詰め):空白 1 個, 任意文字 \***\*\_\_\_\*\***:\_"Hello World"
 
 ## 省略形
 
 予約変数(3 文字左詰め):空白 1 個, 任意文字
-\_\_\_:\_Hello World
+\_\_\_:\_"Hello World"
 
 ## 詳細表示
 
@@ -282,7 +339,7 @@ Link >> Bold >> Italic >> Stlike
 
 ### 太字
 
-Text : Hello World
+Text : "Hello World"
 
 - 選択範囲が無い場合「ctrl + b」で太字モードにする
   もう一度「ctrl + b」で無効
@@ -290,7 +347,7 @@ Text : Hello World
 
 ### 斜体
 
-Text : Hello World
+Text : "Hello World"
 
 - 選択範囲が無い場合「ctrl + i」で斜体モードにする
   もう一度「ctrl + i」で無効
@@ -298,7 +355,7 @@ Text : Hello World
 
 ### 取り消し線
 
-Text : Hello World
+Text : "Hello World"
 
 - 選択範囲が無い場合「ctrl + shift + s」取り消し線でモードにする
   もう一度「ctrl + shift + s」で無効
@@ -306,10 +363,12 @@ Text : Hello World
 
 ## 改行
 
+```zin
 Text :
-: ← 改行時はこのように : でつなぐ
-:
-:
+     : ← 改行時はこのように : でつなぐ
+     :
+     :
+```
 
 テーブルの場合は Row でつなぐ
 Table : | | | |
@@ -320,8 +379,26 @@ Row : | | | |
 すでに次の行に改行がある場合は改行の自動補間は無効にする
 
 1. この状態で改行を入れる
-   Text :
-   :
+```zin
+Text :
+     :
+```
 
-2. Text :
-   :
+2. 
+```zin
+Text :
+______
+     :
+
+```
+
+## コンパイラのロジック
+
+文字が入力されたら発火
+
+変数定義時のコンパイラ
+文字が入力されて
+
+変数に紐づく入力であるか
+Yes: 型推論のコンパイラを実行
+
