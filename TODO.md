@@ -9,7 +9,49 @@ zin
 
 .zin
 
-# 描画部分の定義
+# 言語仕様について
+
+## 予約語一覧
+
+| 予約語 | 説明 |
+| ---- | ---- |
+| Paragraph | paragraph描画に使用 |
+| Headding1 | h1描画に使用 |
+| Headding2 | h2描画に使用 |
+| Headding3 | h3描画に使用 |
+| Headding4 | h4描画に使用 |
+| UList | リスト描画に使用 |
+| OList | ナンバーリスト描画に使用 |
+| TodoList | todoリスト描画に使用 |
+| CodeBlock | コードブロック描画に使用 |
+| Quate | quate描画に使用 |
+| Table | テーブルヘッダ描画に使用 |
+| Row | テーブルボディ描画に使用 |
+| P | Paragraphの省略形 |
+| H1 | Headding1の省略形 |
+| H2 | Headding2の省略形 |
+| H3 | Headding3の省略形 |
+| H4 | Headding4の省略形 |
+| UL | UListの省略形 |
+| OL | OListの省略形 |
+| TL | TodoListの省略形 |
+| CB | CodeBlockの省略形 |
+| Q | Quateの省略形 |
+| T | Tableの省略形 |
+| R | Rowの省略形 |
+| | |
+
+## 基本形・省略形のモード切替
+`setting.zin`ファイルに設定を記載
+```zin
+// 基本形
+MODE = default
+
+// or
+
+// 省略形
+MODE = omit
+```
 
 ## PrimaryNode
 
@@ -113,7 +155,7 @@ P : "Hello World"
 
 # 変数
 1. 変数、関数定義位置
-「HMDX : title」の上で定義する必要がある
+「Return : title」の上で定義する必要がある
 
 2. 予約文字
 PrimaryNode に定義したものと以下の変数
@@ -130,7 +172,7 @@ hoge: "aiueo"
 Log: ログ | hoge |　// aiueo
 huga: タイトル
 
-ZIN : | huga |
+Return : | huga |
 // ...
 ```
 
@@ -139,6 +181,9 @@ ZIN : | huga |
 
 
 ## 関数
+
+基本は一番下の変数や式が戻り値となる
+
 ```zin
 hoge |arg1, arg2|:
   hoge2: 1
@@ -149,6 +194,20 @@ hoge |arg1, arg2|:
 hoge |arg1, arg2|:
   hoge2: 1
   arg1 + arg2 + hoge2
+```
+
+「Return」を明示的に書くこともできる
+
+```zin
+hoge |arg1, arg2|:
+  hoge2: 1
+  hoge3 : arg1 + arg2 + hoge2
+  hoge3
+
+// もしくは
+hoge |arg1, arg2|:
+  hoge2: 1
+  Return arg1 + arg2 + hoge2
 ```
 
 ## データ型
@@ -162,7 +221,7 @@ hoge : True
 // float
 hoge : 1.1
 // list
-hoge : [a, b, c]
+hoge : ["a", "b", "c"]
 // dict
 hoge : {key1: "hello", key2: 2}
 ```
@@ -182,16 +241,29 @@ hoge > 1 : trueの時
            : falseの時
 : falseの時
 
-//
-hoge > 1 : trueの時 |> hoge > 2 : trueの時 |> hoge > 3 : trueの時
-           : falseの時
-: falseの時
 
 // for
-
+hoge : ["a", "b", "c"]
+hoge | i, r | 
+  Log: r
 
 ```
 
+
+## サンプルコード
+```zin
+
+return | title: "zin 言語の使い方" |
+h1 : 実装例
+p : 以下に実装例を記載
+h2 : 目次
+ul     : データ型の使い方
+       : 関数の使い方
+h2 : データ型の使い方
+CodeBlock : hoge : ["a", "b", "c"]
+zin       :   hoge | i, r | 
+          :   Log: r
+```
 
 # AST
 
@@ -317,9 +389,10 @@ text の文字列が長い場合に、IME 入力の場合は「確定時」、�
 
 - 開始位置:終了位置 インデックス番号
 
-Paragraph :
+Paragraph 
 |- Link[0:2] Bold[0:2] Italic[4:5] Strike[4:5]
 |- Text[Hello] Url[https://~]
+          : Hello World
 
 表示優先順
 Link >> Bold >> Italic >> Stlike
