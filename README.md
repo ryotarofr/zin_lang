@@ -42,8 +42,6 @@ cb lang[python]:
 :      return n
 :    return fibonacci(n- ibonacci(n-2))
 
-print(fibonacci(10))
-
 t : | Framework | Performance | Learning Curve |
 r : | React | High | Medium |
 r : | Vue | High | Low |
