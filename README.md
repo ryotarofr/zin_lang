@@ -36,10 +36,11 @@ ul : Simple and intuitive syntax
    : Powerful styling capabilities
    : Multiple output formats supported
 
-cb lang[python]: def fibonacci(n)
-: if n <= 1:
-: return n
-: return fibonacci(n- ibonacci(n-2))
+cb lang[python]:
+: def fibonacci(n)
+:    if n <= 1:
+:      return n
+:    return fibonacci(n- ibonacci(n-2))
 
 print(fibonacci(10))
 
