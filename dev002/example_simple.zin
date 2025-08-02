@@ -1,0 +1,34 @@
+// Sample zin document demonstrating all features
+h1 bold[0:15] : Getting Started with Zin
+
+p : Welcome to the zin markup language documentation.
+
+h2 : Basic Text Elements
+
+p italic[0:6] : Simple paragraph with italic text at the beginning.
+
+h3 : Text Styling Examples
+
+p bold[0:4] italic[5:9] strike[10:16] : Bold text sample here
+p link[0:9] url[https://zin-lang.org] : Visit our website for more information.
+
+h2 : Lists
+
+h3 : Unordered List
+ul : First item
+ul : Second item with more content
+ul : Third item
+
+h3 : Ordered List  
+ol : Step one of the process
+ol : Step two with details
+ol : Final step
+
+h3 : Todo List
+tl : Complete the documentation
+tl : Test all features
+tl : Deploy the compiler
+
+h2 : Quotes
+
+q italic[0:8] : Remember: simplicity is the ultimate sophistication.
