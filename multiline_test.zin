@@ -1,0 +1,7 @@
+cb lang[python] : def greet():
+       :     print("Hello")
+       :     print("World")
+
+cb : This is text
+   : Multiple lines
+   : No language

@@ -1,0 +1,3 @@
+cb lang[zin] : hoge : ["a", "b", "c"]
+             :   hoge | i, r |
+             :   Log: r

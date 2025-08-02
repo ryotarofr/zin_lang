@@ -1,0 +1,10 @@
+cb lang[python] : def greet():
+       :     print('Hello')
+
+cb : plain text code
+   : no language specified
+
+cb lang[zin] : hoge : ["a", "b", "c"]
+                    :   hoge | i, r |
+                    :   Log: r
+

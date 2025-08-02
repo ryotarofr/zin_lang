@@ -1,0 +1,7 @@
+cb lang[python] : def hello()
+                :    print world
+
+cb lang[javascript] : function test() { return true }
+
+cb : plain text code block
+   : second line
