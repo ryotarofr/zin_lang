@@ -25,7 +25,7 @@ zin → Lexer → Parser → Semantic → CodeGen/VirtualDOM → HTML
 h1 bold[0:15] : Getting Started with Zin
 
 p : Welcome to the zin markup language documentation.
- : This guide will help you understand all the features.
+  : This guide will help you understand all the features.
 
 h2 : Text Styling Examples
 
@@ -33,10 +33,10 @@ p bold[0:4] italic[5:9] strike[10:16] : Bold text sample here
 p link[0:9] url[https://zin-lang.org] : Visit our website for more information.
 
 ul : Simple and intuitive syntax
-  : Powerful styling capabilities
-  : Multiple output formats supported
+   : Powerful styling capabilities
+   : Multiple output formats supported
 
-cb lang[python]: def fibonacci(n):
+cb lang[python]: def fibonacci(n)
 : if n <= 1:
 : return n
 : return fibonacci(n- ibonacci(n-2))
