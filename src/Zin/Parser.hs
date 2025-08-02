@@ -146,18 +146,46 @@ parseContinuationLines = do
 parseCodeBlock :: Parser Block
 parseCodeBlock = do
   consumeToken -- consume 'cb'
-  expectColon
-  code <- parseTextContent
   
-  -- Try to parse language specification
+  -- Check if there's a lang[...] specification
   langToken <- peekToken
   case langToken of
-    Text lang -> do
-      consumeToken
+    LangTag lang -> do
+      consumeToken -- consume lang[...]
       expectColon
-      moreCode <- parseMultiLineText
-      return (CodeBlock lang (code <> "\n" <> moreCode))
-    _ -> return (CodeBlock "text" code)
+      code <- parseMultiLineTextWithFirstLine
+      return (CodeBlock lang code)
+    _ -> do
+      expectColon
+      code <- parseMultiLineTextWithFirstLine
+      
+      -- Check if the code is empty and there might be continuation lines for legacy format
+      if T.null code
+        then do
+          -- Try to parse legacy language specification on next line
+          nextToken <- peekToken
+          case nextToken of
+            Newline -> do
+              consumeToken
+              indentToken <- peekToken
+              case indentToken of
+                Indent _ -> do
+                  consumeToken
+                  langOrCodeToken <- peekToken
+                  case langOrCodeToken of
+                    Text lang -> do
+                      consumeToken
+                      colonToken <- peekToken
+                      case colonToken of
+                        Colon -> do
+                          consumeToken
+                          moreCode <- parseMultiLineText
+                          return (CodeBlock lang moreCode)
+                        _ -> return (CodeBlock "txt" lang)
+                    _ -> return (CodeBlock "txt" "")
+                _ -> return (CodeBlock "txt" "")
+            _ -> return (CodeBlock "txt" code)
+        else return (CodeBlock "txt" code)
 
 parseQuote :: Parser Block
 parseQuote = do
@@ -251,24 +279,131 @@ parseTextContent = do
       consumeToken
       rest <- parseTextContent
       return (content <> rest)
+    _ -> return ""
+
+parseTextContentWithColons :: Parser Text
+parseTextContentWithColons = do
+  token <- peekToken
+  case token of
+    Text content -> do
+      consumeToken
+      rest <- parseTextContentWithColons
+      return (content <> rest)
     Colon -> do
       consumeToken
-      rest <- parseTextContent
+      rest <- parseTextContentWithColons
       return (":" <> rest)
+    _ -> return ""
+
+parseCodeBlockContent :: Parser Text
+parseCodeBlockContent = do
+  token <- peekToken
+  case token of
+    Text content -> do
+      consumeToken
+      rest <- parseCodeBlockContent
+      return (content <> rest)
+    Colon -> do
+      consumeToken
+      rest <- parseCodeBlockContent
+      return (":" <> rest)
+    Pipe -> do
+      consumeToken
+      rest <- parseCodeBlockContent
+      return ("|" <> rest)
+    StyleTag tagName range -> do
+      consumeToken
+      rest <- parseCodeBlockContent
+      return (tagName <> "[" <> T.intercalate ":" (map (T.pack . show) range) <> "]" <> rest)
+    LangTag lang -> do
+      consumeToken
+      rest <- parseCodeBlockContent
+      return ("lang[" <> lang <> "]" <> rest)
+    URL url -> do
+      consumeToken  
+      rest <- parseCodeBlockContent
+      return ("url[" <> url <> "]" <> rest)
+    Newline -> return ""  -- Stop at newline but don't consume it
+    EOF -> return ""
+    _ -> return ""
+
+parseMultiLineTextWithFirstLine :: Parser Text
+parseMultiLineTextWithFirstLine = do
+  firstLine <- parseCodeBlockContent
+  continuationLines <- parseContinuationCodeBlockLines
+  let trimmedFirstLine = T.stripEnd firstLine  -- Remove trailing whitespace
+  return $ if T.null continuationLines
+           then trimmedFirstLine
+           else trimmedFirstLine <> "\n" <> continuationLines
+
+parseContinuationCodeBlockLines :: Parser Text
+parseContinuationCodeBlockLines = do
+  token <- peekToken
+  case token of
+    Newline -> do
+      _ <- consumeToken
+      nextToken <- peekToken
+      case nextToken of
+        Indent _ -> do
+          _ <- consumeToken
+          colonToken <- peekToken
+          case colonToken of
+            Colon -> do
+              _ <- consumeToken
+              text <- parseCodeBlockContent
+              let trimmedText = T.stripEnd text  -- Remove trailing whitespace
+              restText <- parseContinuationCodeBlockLines
+              return $ if T.null restText
+                      then trimmedText
+                      else trimmedText <> "\n" <> restText
+            _ -> return ""
+        _ -> return ""
+    _ -> return ""
+
+parseContinuationCodeLines :: Parser Text
+parseContinuationCodeLines = do
+  token <- peekToken
+  case token of
+    Newline -> do
+      _ <- consumeToken
+      nextToken <- peekToken
+      case nextToken of
+        Indent _ -> do
+          _ <- consumeToken
+          colonToken <- peekToken
+          case colonToken of
+            Colon -> do
+              _ <- consumeToken
+              text <- parseTextContentWithColons
+              restText <- parseContinuationCodeLines
+              return $ if T.null restText
+                      then text
+                      else text <> "\n" <> restText
+            _ -> return ""
+        _ -> return ""
     _ -> return ""
 
 parseMultiLineText :: Parser Text
 parseMultiLineText = do
   token <- peekToken
   case token of
-    Text content -> do
-      consumeToken
-      expectColon
-      rest <- parseMultiLineText
-      return (content <> "\n" <> rest)
     Newline -> do
       consumeToken
-      parseMultiLineText
+      nextToken <- peekToken
+      case nextToken of
+        Indent _ -> do
+          consumeToken
+          colonToken <- peekToken
+          case colonToken of
+            Colon -> do
+              consumeToken
+              text <- parseTextContentWithColons
+              rest <- parseMultiLineText
+              return $ if T.null rest
+                      then text
+                      else text <> "\n" <> rest
+            _ -> return ""
+        _ -> return ""
     EOF -> return ""
     _ -> return ""
 

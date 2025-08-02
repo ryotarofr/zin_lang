@@ -16,7 +16,7 @@ import Data.Ord (comparing)
 
 import Zin.AST
 import qualified Zin.VirtualDOM as VD
-import Zin.VirtualDOM (VNode(..), VProps(..), VDocument(..), Attribute(..), createVNode, createTextNode, createElementNode, addAttribute)
+import Zin.VirtualDOM (VNode(..), VProps(..), VDocument(..), Attribute(..), createVNode, createTextNode, createRawTextNode, createElementNode, addAttribute)
 import Zin.AST (getStyleRange)
 
 -- Generate virtual DOM from Document
@@ -62,7 +62,7 @@ blockToVNode (List listType items) =
 blockToVNode (CodeBlock lang code) = 
   createElementNode "pre" [] 
     [ createElementNode "code" (if T.null lang then [] else [Attribute "class" ("language-" <> lang)]) 
-        [ createTextNode code ]
+        [ createRawTextNode code ]
     ]
   where
     codeAttrs = if T.null lang 

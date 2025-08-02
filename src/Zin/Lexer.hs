@@ -14,6 +14,7 @@ import Control.Monad.State
 data Token
   = TopLevelTag Text
   | StyleTag Text [Int]
+  | LangTag Text
   | Colon
   | Pipe
   | Text Text
@@ -71,6 +72,7 @@ nextToken input
   | T.head input == ' ' = nextToken (T.dropWhile (== ' ') input)
   | isTopLevelTag input = parseTopLevelTag input
   | isStyleTag input = parseStyleTag input
+  | isLangTag input = parseLangTag input
   | isURL input = parseURL input
   | T.head input == ':' && isStandaloneColon input = return (Colon, T.tail input)
   | T.head input == '|' = return (Pipe, T.tail input)
@@ -82,9 +84,15 @@ nextToken input
         _ -> False
 
 isTopLevelTag :: Text -> Bool
-isTopLevelTag input = any (`T.isPrefixOf` input) topLevelTags
+isTopLevelTag input = any (isExactTopLevelTag input) topLevelTags
   where
     topLevelTags = ["p", "h1", "h2", "h3", "h4", "ul", "ol", "tl", "cb", "q", "t", "r"]
+    isExactTopLevelTag text tag = 
+      T.isPrefixOf tag text && 
+      (T.length text == T.length tag || 
+       (T.length text > T.length tag && 
+        let nextChar = T.index text (T.length tag)
+        in nextChar == ' ' || nextChar == ':'))
 
 parseTopLevelTag :: Text -> LexerState (Token, Text)
 parseTopLevelTag input = do
@@ -123,6 +131,16 @@ parseRange rangeStr =
 
 isURL :: Text -> Bool
 isURL input = T.isPrefixOf "url[" input
+
+isLangTag :: Text -> Bool
+isLangTag input = T.isPrefixOf "lang[" input
+
+parseLangTag :: Text -> LexerState (Token, Text)
+parseLangTag input = do
+  let afterLang = T.drop 5 input
+  let langContent = T.takeWhile (/= ']') afterLang
+  let rest = T.drop (T.length langContent + 1) afterLang
+  return (LangTag langContent, rest)
 
 parseURL :: Text -> LexerState (Token, Text)
 parseURL input = do

@@ -120,6 +120,7 @@ renderWithContext context vnode = do
   let options = engineOptions engine
   case vnode of
     VText text -> return (escapeHTML text)
+    VRawText text -> return text
     VElement tag props children key -> do
       let elementId = generateElementId context tag key
       openTag <- renderOpenTag tag props elementId options
@@ -204,6 +205,14 @@ generateDOMOperations vnode = execWriter (generateOpsForNode vnode Nothing)
 generateOpsForNode :: VNode -> Maybe Text -> Writer [DOMOperation] Text
 generateOpsForNode (VText text) parentId = do
   let nodeId = "text-" <> T.take 8 (T.filter (/= ' ') text)
+  tell [CreateTextNode nodeId (escapeHTML text)]
+  case parentId of
+    Just pid -> tell [AppendChild pid nodeId]
+    Nothing -> return ()
+  return nodeId
+
+generateOpsForNode (VRawText text) parentId = do
+  let nodeId = "text-" <> T.take 8 (T.filter (/= ' ') text)
   tell [CreateTextNode nodeId text]
   case parentId of
     Just pid -> tell [AppendChild pid nodeId]
@@ -250,6 +259,7 @@ optimizeRender = optimizeTextNodes . removeEmptyNodes . mergeAdjacentText
 
 removeEmptyNodes :: VNode -> VNode
 removeEmptyNodes (VText text) = if T.null (T.strip text) then VText "" else VText text
+removeEmptyNodes (VRawText text) = if T.null (T.strip text) then VRawText "" else VRawText text
 removeEmptyNodes (VElement tag props children key) = 
   let filteredChildren = filter (not . isEmptyNode) (map removeEmptyNodes children)
   in VElement tag props filteredChildren key
@@ -276,6 +286,7 @@ mergeTextNodes (node : rest) = mergeAdjacentText node : mergeTextNodes rest
 
 optimizeTextNodes :: VNode -> VNode
 optimizeTextNodes (VText text) = VText (T.strip text)
+optimizeTextNodes (VRawText text) = VRawText text  -- Don't strip raw text in code blocks
 optimizeTextNodes (VElement tag props children key) = 
   VElement tag props (map optimizeTextNodes children) key
 optimizeTextNodes (VComponent name props children) = 
