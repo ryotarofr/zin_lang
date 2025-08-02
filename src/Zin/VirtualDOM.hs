@@ -9,6 +9,7 @@ module Zin.VirtualDOM
   , EventHandler(..)
   , createVNode
   , createTextNode
+  , createRawTextNode
   , createElementNode
   , addAttribute
   , addEventListener
@@ -31,6 +32,7 @@ data VNode
     , vKey :: Maybe Text
     }
   | VText Text
+  | VRawText Text  -- For code blocks where we don't want HTML escaping
   | VComponent 
     { vComponentName :: Text
     , vComponentProps :: VProps
@@ -84,6 +86,9 @@ createVNode tag props children = VElement tag props children Nothing
 createTextNode :: Text -> VNode
 createTextNode = VText
 
+createRawTextNode :: Text -> VNode
+createRawTextNode = VRawText
+
 createElementNode :: Text -> [Attribute] -> [VNode] -> VNode
 createElementNode tag attrs children = 
   let props = foldl addAttributeToProps emptyProps attrs
@@ -113,6 +118,7 @@ addEventListener eventType handler props =
 -- Virtual DOM to DOM rendering (conceptual - would interface with actual DOM)
 renderVNode :: VNode -> Text
 renderVNode (VText text) = escapeHTML text
+renderVNode (VRawText text) = text
 renderVNode (VElement tag props children Nothing) = 
   let openTag = "<" <> tag <> renderProps props <> ">"
       closeTag = "</" <> tag <> ">"
@@ -164,6 +170,8 @@ diffVNodes oldNode newNode
   | oldNode == newNode = Nothing
   | otherwise = case (oldNode, newNode) of
       (VText oldText, VText newText) -> 
+        if oldText == newText then Nothing else Just (Replace newNode)
+      (VRawText oldText, VRawText newText) -> 
         if oldText == newText then Nothing else Just (Replace newNode)
       (VElement oldTag oldProps oldChildren _, VElement newTag newProps newChildren _) -> 
         if oldTag /= newTag 
