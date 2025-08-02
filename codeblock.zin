@@ -1,11 +1,12 @@
-cb lang[python]: def fibonacci(n)
-: if n <= 1:
-: return n
-: return fibonacci(n- ibonacci(n-2))
+cb lang[python]: 
+: def fibonacci(n)
+:    if n <= 1:
+:      return n
+:    return fibonacci(n- ibonacci(n-2))
 
 // or
 
 cb lang[python]: def fibonacci(n):
-: if n <= 1:
-: return n
-: return fibonacci(n- ibonacci(n-2))
+               :    if n <= 1:
+               :      return n
+               :    return fibonacci(n- ibonacci(n-2))
