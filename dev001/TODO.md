@@ -1,61 +1,11 @@
 - [] Rust で初期コンパイラを作る
 - [] 初期コンパイラを使って、セルフコンパイラを作る
-- [] 以降の描画処理を作る(仮想DOM → 実DOM生成 → ブラウザ描画 → ユーザー操作 → 状態更新 → 差分計算 → パッチ適用)
-
-## 言語名
-zin
-
-## 拡張子
-
-.zin
-
-# 言語仕様について
-
-## 予約語一覧
-
-| 予約語 | 説明 |
-| ---- | ---- |
-| Paragraph | paragraph描画に使用 |
-| Headding1 | h1描画に使用 |
-| Headding2 | h2描画に使用 |
-| Headding3 | h3描画に使用 |
-| Headding4 | h4描画に使用 |
-| UList | リスト描画に使用 |
-| OList | ナンバーリスト描画に使用 |
-| TodoList | todoリスト描画に使用 |
-| CodeBlock | コードブロック描画に使用 |
-| Quate | quate描画に使用 |
-| Table | テーブルヘッダ描画に使用 |
-| Row | テーブルボディ描画に使用 |
-| P | Paragraphの省略形 |
-| H1 | Headding1の省略形 |
-| H2 | Headding2の省略形 |
-| H3 | Headding3の省略形 |
-| H4 | Headding4の省略形 |
-| UL | UListの省略形 |
-| OL | OListの省略形 |
-| TL | TodoListの省略形 |
-| CB | CodeBlockの省略形 |
-| Q | Quateの省略形 |
-| T | Tableの省略形 |
-| R | Rowの省略形 |
-| | |
-
-## 基本形・省略形のモード切替
-`setting.zin`ファイルに設定を記載
-```zin
-// 基本形
-MODE = default
-
-// or
-
-// 省略形
-MODE = omit
-```
+- [] 以降の描画処理を作る(仮想 DOM → 実 DOM 生成 → ブラウザ描画 → ユーザー操作 → 状態更新 → 差分計算 → パッチ適用)
 
 ## PrimaryNode
 
 ### 基本形
+
 ```zin
 ZIN : title
 Paragraph : text
@@ -98,13 +48,12 @@ P : "Hello World"
 ```
 
 ### 詳細
-1. 
-zin : title
-ここからが描画部分のコードとなる。
-その時の識別子として「HMDX :」を使う。
 
-2. 
-text の部分はすべて文字列として扱う。
+1.  zin : title
+    ここからが描画部分のコードとなる。
+    その時の識別子として「HMDX :」を使う。
+
+2.  text の部分はすべて文字列として扱う。
 
 ## SecondaryNode
 
@@ -152,20 +101,22 @@ P : "Hello World"
     Url[https://~]
 ```
 
-
 # 変数
+
 1. 変数、関数定義位置
-「Return : title」の上で定義する必要がある
+   「Return : title」の上で定義する必要がある
 
 2. 予約文字
-PrimaryNode に定義したものと以下の変数
+   PrimaryNode に定義したものと以下の変数
+
 ```zin
 // ログ出力用
-Log : 
+Log :
 ```
 
 3. 代入
-型が異なる値であっても同じ変数に再代入できる
+   型が異なる値であっても同じ変数に再代入できる
+
 ```zin
 hoge: 1
 hoge: "aiueo"
@@ -177,8 +128,7 @@ Return : | huga |
 ```
 
 4. 変数のライフタイム
-ファイル内で借用が無くなるまで
-
+   ファイル内で借用が無くなるまで
 
 ## 関数
 
@@ -211,6 +161,7 @@ hoge |arg1, arg2|:
 ```
 
 ## データ型
+
 ```zin
 // int
 hoge : 1
@@ -227,6 +178,7 @@ hoge : {key1: "hello", key2: 2}
 ```
 
 ## データ操作
+
 ```zin
 // if
 hoge > 1 : trueの時
@@ -244,13 +196,13 @@ hoge > 1 : trueの時
 
 // for
 hoge : ["a", "b", "c"]
-hoge | i, r | 
+hoge | i, r |
   Log: r
 
 ```
 
-
 ## サンプルコード
+
 ```zin
 
 return | title: "zin 言語の使い方" |
@@ -261,7 +213,7 @@ ul     : データ型の使い方
        : 関数の使い方
 h2 : データ型の使い方
 CodeBlock : hoge : ["a", "b", "c"]
-zin       :   hoge | i, r | 
+zin       :   hoge | i, r |
           :   Log: r
 ```
 
@@ -389,10 +341,10 @@ text の文字列が長い場合に、IME 入力の場合は「確定時」、�
 
 - 開始位置:終了位置 インデックス番号
 
-Paragraph 
+Paragraph
 |- Link[0:2] Bold[0:2] Italic[4:5] Strike[4:5]
 |- Text[Hello] Url[https://~]
-          : Hello World
+: Hello World
 
 表示優先順
 Link >> Bold >> Italic >> Stlike
@@ -452,12 +404,14 @@ Row : | | | |
 すでに次の行に改行がある場合は改行の自動補間は無効にする
 
 1. この状態で改行を入れる
+
 ```zin
 Text :
      :
 ```
 
-2. 
+2.
+
 ```zin
 Text :
 ______
@@ -474,4 +428,3 @@ ______
 
 変数に紐づく入力であるか
 Yes: 型推論のコンパイラを実行
-
