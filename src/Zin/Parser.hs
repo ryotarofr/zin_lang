@@ -1,36 +1,37 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Zin.Parser 
-  ( parseDocument
-  , parseZinFile
-  ) where
+module Zin.Parser
+  ( parseDocument,
+    parseZinFile,
+  )
+where
 
-import qualified Data.Text as T
-import Data.Text (Text)
+import Control.Monad
 import Control.Monad.Except
 import Control.Monad.State
-import Control.Monad
 import Data.List (groupBy)
-
-import Zin.Lexer
+import Data.Text (Text)
+import qualified Data.Text as T
 import Zin.AST
 import Zin.Error
+import Zin.Lexer
 
 type Parser = ExceptT ParseError (State ParserState)
 
 data ParserState = ParserState
-  { currentLine :: Int
-  , currentColumn :: Int
-  , tokens :: [Token]
-  , pendingStyles :: [Style]
-  , pendingURL :: Maybe Text
-  } deriving (Show)
+  { currentLine :: Int,
+    currentColumn :: Int,
+    tokens :: [Token],
+    pendingStyles :: [Style],
+    pendingURL :: Maybe Text
+  }
+  deriving (Show)
 
 parseZinFile :: Text -> Either ParseError Document
-parseZinFile input = 
+parseZinFile input =
   let indentedLines = lexer input
       tokenList = tokenize indentedLines
-  in parseDocument tokenList
+   in parseDocument tokenList
 
 parseDocument :: [Token] -> Either ParseError Document
 parseDocument tokens = evalState (runExceptT parseDoc) initialState
@@ -54,6 +55,13 @@ parseBlocks = do
     Indent _ -> do
       _ <- consumeToken
       parseBlocks
+    Colon -> do
+      _ <- consumeToken
+      parseBlocks
+    TopLevelTag tag | tag `elem` ["t", "r"] -> do
+      tableBlock <- parseTable
+      rest <- parseBlocks
+      return (tableBlock : rest)
     _ -> do
       block <- parseBlock
       rest <- parseBlocks
@@ -73,8 +81,8 @@ parseTopLevelBlock tag
   | tag `elem` ["ul", "ol", "tl"] = parseList tag
   | tag == "cb" = parseCodeBlock
   | tag == "q" = parseQuote
-  | tag == "t" = parseTableHeader
-  | tag == "r" = parseTableRow
+  | tag == "t" = parseTable
+  | tag == "r" = parseTable
   | otherwise = throwError (UnknownTag tag)
 
 parseParagraph :: Parser Block
@@ -84,9 +92,10 @@ parseParagraph = do
   expectColon
   text <- parseTextContent
   continuationText <- parseContinuationLines
-  let fullText = if T.null continuationText
-                then text
-                else text <> " " <> continuationText
+  let fullText =
+        if T.null continuationText
+          then text
+          else text <> " " <> continuationText
   return (Paragraph styles fullText)
 
 parseHeader :: Text -> Parser Block
@@ -104,9 +113,60 @@ parseList tag = do
   consumeToken -- consume list tag
   case getListType tag of
     Just listType -> do
-      items <- parseListItems
-      return (List listType items)
+      -- Check if next token is colon followed by newline (new syntax)
+      nextToken <- peekToken
+      case nextToken of
+        Colon -> do
+          _ <- consumeToken -- consume colon
+          -- Check if followed by newline
+          newlineToken <- peekToken
+          case newlineToken of
+            Newline -> do
+              _ <- consumeToken -- consume newline
+              items <- parseNewStyleListItems
+              return (List listType items)
+            _ -> do
+              -- Old syntax: single item after colon
+              text <- parseTextContent
+              if T.null (T.strip text)
+                then do
+                  items <- parseListItems
+                  return (List listType items)
+                else do
+                  let item = ListItem [] text
+                  rest <- parseListItems
+                  return (List listType (item : rest))
+        _ -> do
+          items <- parseListItems
+          return (List listType items)
     Nothing -> throwError (UnknownTag tag)
+
+parseNewStyleListItems :: Parser [ListItem]
+parseNewStyleListItems = do
+  token <- peekToken
+  case token of
+    Colon -> do
+      _ <- consumeToken -- consume colon
+      text <- parseTextContent
+      -- Consume newline if present
+      nextToken <- peekToken
+      case nextToken of
+        Newline -> do
+          _ <- consumeToken
+          let item = ListItem [] text
+          rest <- parseNewStyleListItems
+          return (item : rest)
+        _ -> do
+          let item = ListItem [] text
+          rest <- parseNewStyleListItems
+          return (item : rest)
+    Indent _ -> do
+      _ <- consumeToken -- consume indent
+      parseNewStyleListItems
+    Newline -> do
+      _ <- consumeToken -- consume newline
+      parseNewStyleListItems
+    _ -> return []
 
 parseListItems :: Parser [ListItem]
 parseListItems = do
@@ -115,9 +175,13 @@ parseListItems = do
     Colon -> do
       _ <- consumeToken
       text <- parseTextContent
-      let item = ListItem [] text
-      rest <- parseListItems
-      return (item : rest)
+      -- Skip empty list items (when colon is followed by newline immediately)
+      if T.null (T.strip text)
+        then parseListItems -- Skip this empty item and continue
+        else do
+          let item = ListItem [] text
+          rest <- parseListItems
+          return (item : rest)
     _ -> return []
 
 parseContinuationLines :: Parser Text
@@ -136,9 +200,10 @@ parseContinuationLines = do
               _ <- consumeToken
               text <- parseTextContent
               restText <- parseContinuationLines
-              return $ if T.null restText
-                      then text
-                      else text <> " " <> restText
+              return $
+                if T.null restText
+                  then text
+                  else text <> " " <> restText
             _ -> return ""
         _ -> return ""
     _ -> return ""
@@ -146,21 +211,33 @@ parseContinuationLines = do
 parseCodeBlock :: Parser Block
 parseCodeBlock = do
   consumeToken -- consume 'cb'
-  
+
   -- Check if there's a lang[...] specification
   langToken <- peekToken
   case langToken of
     LangTag lang -> do
       consumeToken -- consume lang[...]
       expectColon
-      code <- parseMultiLineTextWithFirstLine
-      return (CodeBlock lang code)
+      -- For code blocks, we don't need to preserve spaces after colon on first line
+      code <- parseCodeBlockContent
+      continuationLines <- parseContinuationCodeBlockLines
+      let fullCode =
+            if T.null continuationLines
+              then T.stripEnd code
+              else T.stripEnd code <> "\n" <> continuationLines
+      return (CodeBlock lang fullCode)
     _ -> do
       expectColon
-      code <- parseMultiLineTextWithFirstLine
-      
+      -- For code blocks, we don't need to preserve spaces after colon on first line
+      code <- parseCodeBlockContent
+      continuationLines <- parseContinuationCodeBlockLines
+      let fullCode =
+            if T.null continuationLines
+              then T.stripEnd code
+              else T.stripEnd code <> "\n" <> continuationLines
+
       -- Check if the code is empty and there might be continuation lines for legacy format
-      if T.null code
+      if T.null fullCode
         then do
           -- Try to parse legacy language specification on next line
           nextToken <- peekToken
@@ -184,8 +261,8 @@ parseCodeBlock = do
                         _ -> return (CodeBlock "txt" lang)
                     _ -> return (CodeBlock "txt" "")
                 _ -> return (CodeBlock "txt" "")
-            _ -> return (CodeBlock "txt" code)
-        else return (CodeBlock "txt" code)
+            _ -> return (CodeBlock "txt" fullCode)
+        else return (CodeBlock "txt" fullCode)
 
 parseQuote :: Parser Block
 parseQuote = do
@@ -195,19 +272,39 @@ parseQuote = do
   text <- parseTextContent
   return (Quote styles text)
 
-parseTableHeader :: Parser Block
-parseTableHeader = do
-  consumeToken -- consume 't'
-  expectColon
-  headers <- parseTableCells
-  return (Table [HeaderRow headers])
+parseTable :: Parser Block
+parseTable = do
+  firstToken <- peekToken
+  case firstToken of
+    TopLevelTag tag | tag == "t" -> do
+      consumeToken -- consume 't'
+      expectColon
+      headers <- parseTableCells
+      rows <- parseTableRows
+      return (Table (HeaderRow headers : rows))
+    TopLevelTag tag | tag == "r" -> do
+      consumeToken -- consume 'r'
+      expectColon
+      cells <- parseTableCells
+      rows <- parseTableRows
+      return (Table (DataRow cells : rows))
+    _ -> throwError (UnexpectedToken firstToken)
 
-parseTableRow :: Parser Block
-parseTableRow = do
-  consumeToken -- consume 'r'
-  expectColon
-  cells <- parseTableCells
-  return (Table [DataRow cells])
+parseTableRows :: Parser [Table]
+parseTableRows = do
+  token <- peekToken
+  case token of
+    Newline -> do
+      consumeToken
+      parseTableRows -- Skip newlines and continue
+    TopLevelTag tag | tag `elem` ["t", "r"] -> do
+      consumeToken -- consume tag
+      expectColon
+      cells <- parseTableCells
+      rest <- parseTableRows
+      let row = if tag == "t" then HeaderRow cells else DataRow cells
+      return (row : rest)
+    _ -> return []
 
 parseTableCells :: Parser [Text]
 parseTableCells = do
@@ -233,10 +330,10 @@ parseTableCellsFromText :: Text -> [Text]
 parseTableCellsFromText text =
   let textStr = T.unpack text
       cells = splitTableCells textStr
-  in map (T.strip . T.pack) cells
+   in map (T.strip . T.pack) cells
 
 splitTableCells :: String -> [String]
-splitTableCells input = 
+splitTableCells input =
   case dropWhile (== '|') input of
     [] -> []
     str -> case break (== '|') str of
@@ -320,10 +417,10 @@ parseCodeBlockContent = do
       rest <- parseCodeBlockContent
       return ("lang[" <> lang <> "]" <> rest)
     URL url -> do
-      consumeToken  
+      consumeToken
       rest <- parseCodeBlockContent
       return ("url[" <> url <> "]" <> rest)
-    Newline -> return ""  -- Stop at newline but don't consume it
+    Newline -> return "" -- Stop at newline but don't consume it
     EOF -> return ""
     _ -> return ""
 
@@ -331,10 +428,11 @@ parseMultiLineTextWithFirstLine :: Parser Text
 parseMultiLineTextWithFirstLine = do
   firstLine <- parseCodeBlockContent
   continuationLines <- parseContinuationCodeBlockLines
-  let trimmedFirstLine = T.stripEnd firstLine  -- Remove trailing whitespace
-  return $ if T.null continuationLines
-           then trimmedFirstLine
-           else trimmedFirstLine <> "\n" <> continuationLines
+  let trimmedFirstLine = T.stripEnd firstLine -- Remove trailing whitespace
+  return $
+    if T.null continuationLines
+      then trimmedFirstLine
+      else trimmedFirstLine <> "\n" <> continuationLines
 
 parseContinuationCodeBlockLines :: Parser Text
 parseContinuationCodeBlockLines = do
@@ -344,18 +442,27 @@ parseContinuationCodeBlockLines = do
       _ <- consumeToken
       nextToken <- peekToken
       case nextToken of
-        Indent _ -> do
+        Indent indentSize -> do
           _ <- consumeToken
           colonToken <- peekToken
           case colonToken of
             Colon -> do
               _ <- consumeToken
+              -- For code blocks, we need to preserve the exact spacing after the colon
+              -- The continuation line format is: [indent]:[ spaces]content
+              -- We need to preserve the spaces after the colon
+              spacesAfterColon <- parseSpacesAfterColon
               text <- parseCodeBlockContent
-              let trimmedText = T.stripEnd text  -- Remove trailing whitespace
+              -- Calculate actual content indentation
+              -- indentSize includes the colon position, so real content indent = indentSize - 1
+              let actualIndent = if indentSize > 1 then T.replicate (indentSize - 1) " " else ""
+              let fullLine = actualIndent <> spacesAfterColon <> text
+              let trimmedLine = T.stripEnd fullLine -- Remove trailing whitespace only
               restText <- parseContinuationCodeBlockLines
-              return $ if T.null restText
-                      then trimmedText
-                      else trimmedText <> "\n" <> restText
+              return $
+                if T.null restText
+                  then trimmedLine
+                  else trimmedLine <> "\n" <> restText
             _ -> return ""
         _ -> return ""
     _ -> return ""
@@ -376,9 +483,10 @@ parseContinuationCodeLines = do
               _ <- consumeToken
               text <- parseTextContentWithColons
               restText <- parseContinuationCodeLines
-              return $ if T.null restText
-                      then text
-                      else text <> "\n" <> restText
+              return $
+                if T.null restText
+                  then text
+                  else text <> "\n" <> restText
             _ -> return ""
         _ -> return ""
     _ -> return ""
@@ -399,9 +507,10 @@ parseMultiLineText = do
               consumeToken
               text <- parseTextContentWithColons
               rest <- parseMultiLineText
-              return $ if T.null rest
-                      then text
-                      else text <> "\n" <> rest
+              return $
+                if T.null rest
+                  then text
+                  else text <> "\n" <> rest
             _ -> return ""
         _ -> return ""
     EOF -> return ""
@@ -413,15 +522,15 @@ peekToken = do
   state <- get
   case tokens state of
     [] -> return EOF
-    (t:_) -> return t
+    (t : _) -> return t
 
 consumeToken :: Parser Token
 consumeToken = do
   state <- get
   case tokens state of
     [] -> return EOF
-    (t:ts) -> do
-      put state { tokens = ts }
+    (t : ts) -> do
+      put state {tokens = ts}
       return t
 
 expectColon :: Parser ()
@@ -437,3 +546,25 @@ expectPipe = do
   case token of
     Pipe -> return ()
     _ -> throwError InvalidTableFormat
+
+-- Parse spaces after colon in code blocks to preserve indentation
+parseSpacesAfterColon :: Parser Text
+parseSpacesAfterColon = do
+  token <- peekToken
+  case token of
+    Text content ->
+      -- If the text starts with spaces, consume only the spaces part
+      let spaces = T.takeWhile (== ' ') content
+       in if T.null spaces
+            then return ""
+            else do
+              -- Update tokens to consume only the spaces
+              state <- get
+              let remainingText = T.dropWhile (== ' ') content
+              let newTokens =
+                    if T.null remainingText
+                      then tail (tokens state) -- Consume entire token
+                      else Text remainingText : tail (tokens state) -- Leave non-space part
+              put state {tokens = newTokens}
+              return spaces
+    _ -> return ""

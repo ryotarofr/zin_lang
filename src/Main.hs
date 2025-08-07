@@ -1,26 +1,34 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
+import Control.Monad (when)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import Data.Time (defaultTimeLocale, formatTime, getCurrentTime)
+import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Environment (getArgs)
 import System.Exit (exitFailure, exitSuccess)
-import System.FilePath (takeBaseName, replaceExtension, takeDirectory, (</>))
-import System.Directory (doesFileExist, createDirectoryIfMissing)
-import Control.Monad (when)
-import Data.Time (getCurrentTime, formatTime, defaultTimeLocale)
-
-import Zin.Lexer
-import Zin.Parser  
-import Zin.Semantic
-import Zin.CodeGen
-import Zin.VirtualCodeGen
-import Zin.Renderer
-import Zin.Error
+import System.FilePath (replaceExtension, takeBaseName, takeDirectory, (</>))
 import Zin.AST
+import Zin.CodeGen
+import Zin.Error
+import Zin.Lexer
+import Zin.Parser
+import Zin.Renderer
+import Zin.Semantic
+import Zin.VirtualCodeGen
+#ifndef WASM_BUILD
 import Zin.IncrementalCompiler (CompilationMode(..), IncrementalCompiler(..), CompilationResult(..), CompilationPerformance(..), compileIncremental, initializeCompiler, loadCompilerState, saveCompilerState, analyzePerformance, getCompilerStats)
+#else
+import Zin.WASM ()
+#endif
 
+#ifdef WASM_BUILD
+main :: IO ()
+main = return ()
+#else
 main :: IO ()
 main = do
   args <- getArgs
@@ -241,3 +249,4 @@ handleCommand cmd = do
   putStrLn $ "Unknown command: " ++ cmd
   putStrLn "Use --help for usage information"
   exitFailure
+#endif

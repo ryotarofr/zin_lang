@@ -1,25 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Zin.AST 
-  ( Document(..)
-  , Block(..)
-  , Style(..)
-  , ListType(..)
-  , ListItem(..)
-  , Table(..)
-  , getHeaderLevel
-  , getListType
-  , isTopLevelTag
-  , isHeaderTag
-  , isListTag
-  , isTableTag
-  , validateStyleRange
-  , getStyleRange
-  , applyStyleToText
-  ) where
+module Zin.AST
+  ( Document (..),
+    Block (..),
+    Style (..),
+    ListType (..),
+    ListItem (..),
+    Table (..),
+    getHeaderLevel,
+    getListType,
+    isTopLevelTag,
+    isHeaderTag,
+    isListTag,
+    isTableTag,
+    validateStyleRange,
+    getStyleRange,
+    applyStyleToText,
+  )
+where
 
-import qualified Data.Text as T
 import Data.Text (Text)
+import qualified Data.Text as T
 
 data Document = Document [Block]
   deriving (Show, Eq)
@@ -40,17 +41,17 @@ data Style
   | Link (Int, Int) Text
   deriving (Show, Eq)
 
-data ListType 
-  = Unordered 
-  | Ordered 
+data ListType
+  = Unordered
+  | Ordered
   | Todo
   deriving (Show, Eq)
 
 data ListItem = ListItem [Style] Text
   deriving (Show, Eq)
 
-data Table 
-  = HeaderRow [Text] 
+data Table
+  = HeaderRow [Text]
   | DataRow [Text]
   deriving (Show, Eq)
 
@@ -85,7 +86,7 @@ validateStyleRange :: Style -> Text -> Bool
 validateStyleRange style text =
   let len = T.length text
       (start, end) = getStyleRange style
-  in start >= 0 && end <= len && start <= end
+   in start >= 0 && end <= len && start <= end
 
 getStyleRange :: Style -> (Int, Int)
 getStyleRange (Bold range) = range
@@ -95,19 +96,19 @@ getStyleRange (Link range _) = range
 
 -- Text manipulation for styles
 applyStyleToText :: Style -> Text -> Text
-applyStyleToText (Bold (s, e)) text = 
+applyStyleToText (Bold (s, e)) text =
   let (before, rest) = T.splitAt s text
       (middle, after) = T.splitAt (e - s) rest
-  in before <> "<strong>" <> middle <> "</strong>" <> after
-applyStyleToText (Italic (s, e)) text = 
+   in before <> "<strong>" <> middle <> "</strong>" <> after
+applyStyleToText (Italic (s, e)) text =
   let (before, rest) = T.splitAt s text
       (middle, after) = T.splitAt (e - s) rest
-  in before <> "<em>" <> middle <> "</em>" <> after
-applyStyleToText (Strike (s, e)) text = 
+   in before <> "<em>" <> middle <> "</em>" <> after
+applyStyleToText (Strike (s, e)) text =
   let (before, rest) = T.splitAt s text
       (middle, after) = T.splitAt (e - s) rest
-  in before <> "<del>" <> middle <> "</del>" <> after
-applyStyleToText (Link (s, e) url) text = 
+   in before <> "<del>" <> middle <> "</del>" <> after
+applyStyleToText (Link (s, e) url) text =
   let (before, rest) = T.splitAt s text
       (middle, after) = T.splitAt (e - s) rest
-  in before <> "<a href=\"" <> url <> "\">" <> middle <> "</a>" <> after
+   in before <> "<a href=\"" <> url <> "\">" <> middle <> "</a>" <> after
