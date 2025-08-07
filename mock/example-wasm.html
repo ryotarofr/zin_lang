@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zin Compiler WASM Example</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+
+      .container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        height: calc(98vh - 120px);
+        max-height: calc(98vh - 120px);
+        overflow: hidden;
+      }
+
+      .panel {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .panel h2 {
+        margin-top: 0;
+        color: #333;
+        border-bottom: 2px solid #007acc;
+        padding-bottom: 10px;
+      }
+
+      #zin-input {
+        width: 100%;
+        flex: 1;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        font-family: "Monaco", "Menlo", "Consolas", monospace;
+        font-size: 14px;
+        resize: none;
+        outline: none;
+        overflow-y: auto;
+        box-sizing: border-box;
+        min-height: 0;
+      }
+
+      #zin-input:focus {
+        border-color: #007acc;
+        box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+      }
+
+      #html-output {
+        width: 100%;
+        flex: 1;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        background-color: #fafafa;
+        overflow-y: auto;
+        box-sizing: border-box;
+        min-height: 0;
+      }
+
+      .controls {
+        margin: 10px 0;
+      }
+
+      button {
+        background: #007acc;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-right: 10px;
+        font-size: 14px;
+      }
+
+      button:hover {
+        background: #005a8b;
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      .status {
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-weight: bold;
+      }
+
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .status.loading {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      .examples {
+        margin: 10px 0;
+      }
+
+      .example-btn {
+        background: #6c757d;
+        margin: 2px;
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+
+      .example-btn:hover {
+        background: #545b62;
+      }
+
+      .stats {
+        font-size: 12px;
+        color: #666;
+        margin-top: 10px;
+      }
+
+      .todo-list {
+        list-style-type: none;
+        padding-left: 0;
+      }
+
+      .todo-list li:before {
+        content: "☐ ";
+        margin-right: 5px;
+      }
+
+      #html-output strong {
+        font-weight: bold;
+      }
+
+      #html-output em {
+        font-style: italic;
+      }
+
+      #html-output del {
+        text-decoration: line-through;
+      }
+
+      #html-output a {
+        color: #007acc;
+        text-decoration: underline;
+      }
+
+      #html-output a:hover {
+        color: #005a8b;
+      }
+
+      #html-output table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 10px 0;
+      }
+
+      #html-output table th,
+      #html-output table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+
+      #html-output table th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+      }
+
+      #html-output table tr:nth-child(even) {
+        background-color: #f9f9f9;
+      }
+
+      #html-output pre {
+        background-color: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        overflow-x: auto;
+      }
+
+      #html-output code {
+        font-family: "Monaco", "Menlo", "Consolas", monospace;
+        font-size: 14px;
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          grid-template-columns: 1fr;
+          grid-template-rows: 1fr 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔥 Zin Compiler WebAssembly Demo</h1>
+    <div class="container">
+      <div class="panel">
+        <h2>📝 Zin Input</h2>
+        <textarea
+          id="zin-input"
+          placeholder="ここにZinコードを入力してください..."
+        >
+h1 bold[0:15] : Getting Started with Zin
+
+p : Welcome to the zin markup language documentation.
+  : This guide will help you understand all the features.
+
+h2 : Text Styling Examples
+
+p bold[0:4] italic[5:9] strike[10:16] : Bold text sample here
+p link[0:9] url[https://zin-lang.org] : Visit our website for more information.
+
+ul : Simple and intuitive syntax
+   : Powerful styling capabilities
+   : Multiple output formats supported
+
+cb lang[python]:
+: def fibonacci(n)
+:    if n <= 1:
+:      return n
+:    return fibonacci(n- ibonacci(n-2))
+
+t : | head | head | head |
+r : | row | row | row |
+r : | row | row | row |
+r : | row | row | row |
+
+q italic[0:8] : Remember: simplicity is the ultimate sophistication.
+</textarea
+        >
+      </div>
+      <div class="panel">
+        <h2>🌐 HTML Output</h2>
+        <div id="status" class="status" style="display: none"></div>
+        <div id="html-output"></div>
+        <div id="stats" class="stats"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      import ZinCompiler from "./zin-wasm.js";
+
+      let compiler = null;
+      let compilationCount = 0;
+
+      // Initialize compiler
+      async function initCompiler() {
+        try {
+          showStatus("WASM モジュールを読み込み中...", "loading");
+          compiler = new ZinCompiler();
+          await compiler.init("./zin-compiler-wasm.js");
+          showStatus(
+            `コンパイラ初期化完了 (${compiler.getVersion()})`,
+            "success"
+          );
+          const compileBtn = document.getElementById("compile-btn");
+          const benchmarkBtn = document.getElementById("benchmark-btn");
+          if (compileBtn) compileBtn.disabled = false;
+          if (benchmarkBtn) benchmarkBtn.disabled = false;
+        } catch (error) {
+          showStatus(`初期化エラー: ${error.message}`, "error");
+          console.error("Compiler initialization failed:", error);
+        }
+      }
+
+      // Compile Zin code
+      window.compileZin = function () {
+        if (!compiler || !compiler.isInitialized()) {
+          showStatus("コンパイラが初期化されていません", "error");
+          return;
+        }
+
+        const input = document.getElementById("zin-input").value;
+        const startTime = performance.now();
+
+        try {
+          const result = compiler.compileToJSON(input);
+          const endTime = performance.now();
+
+          if (result.success) {
+            document.getElementById("html-output").innerHTML = result.html;
+            compilationCount++;
+            showStatus(
+              `コンパイル成功 (${(endTime - startTime).toFixed(2)}ms)`,
+              "success"
+            );
+            updateStats(endTime - startTime);
+          } else {
+            document.getElementById(
+              "html-output"
+            ).innerHTML = `<pre style="color: red;">${result.error}</pre>`;
+            showStatus(`コンパイルエラー: ${result.error}`, "error");
+          }
+        } catch (error) {
+          showStatus(`エラー: ${error.message}`, "error");
+          console.error("Compilation error:", error);
+        }
+      };
+
+      // Benchmark compilation
+      window.benchmarkCompilation = function () {
+        if (!compiler || !compiler.isInitialized()) {
+          showStatus("コンパイラが初期化されていません", "error");
+          return;
+        }
+
+        const input = document.getElementById("zin-input").value;
+        const iterations = 100;
+
+        showStatus(`ベンチマーク実行中 (${iterations}回)...`, "loading");
+
+        try {
+          const result = compiler.benchmark(input, iterations);
+          showStatus(
+            `ベンチマーク完了: ${iterations}回 / ${result.totalTimeMs.toFixed(
+              2
+            )}ms (平均: ${result.avgTimePerIterationMs.toFixed(3)}ms/回)`,
+            "success"
+          );
+
+          document.getElementById("stats").innerHTML = `
+                    <strong>ベンチマーク結果:</strong><br>
+                    成功: ${result.successes}/${result.iterations}<br>
+                    失敗: ${result.failures}/${result.iterations}<br>
+                    総時間: ${result.totalTimeMs.toFixed(2)}ms<br>
+                    平均時間: ${result.avgTimePerIterationMs.toFixed(3)}ms/回
+                `;
+        } catch (error) {
+          showStatus(`ベンチマークエラー: ${error.message}`, "error");
+          console.error("Benchmark error:", error);
+        }
+      };
+      // Clear output
+      window.clearOutput = function () {
+        document.getElementById("html-output").innerHTML = "";
+        document.getElementById("status").style.display = "none";
+        document.getElementById("stats").innerHTML = "";
+      };
+
+      // Show status message
+      function showStatus(message, type) {
+        const statusEl = document.getElementById("status");
+        statusEl.textContent = message;
+        statusEl.className = `status ${type}`;
+        statusEl.style.display = "block";
+      }
+
+      // Update compilation stats
+      function updateStats(time) {
+        document.getElementById("stats").innerHTML = `
+                <strong>統計:</strong><br>
+                総コンパイル回数: ${compilationCount}<br>
+                最新コンパイル時間: ${time.toFixed(2)}ms
+            `;
+      }
+
+      // Auto-compile on input change (debounced)
+      let compileTimeout;
+      document
+        .getElementById("zin-input")
+        .addEventListener("input", function () {
+          clearTimeout(compileTimeout);
+          compileTimeout = setTimeout(compileZin, 500);
+        });
+
+      // Disable buttons until compiler is ready
+      const compileBtn = document.getElementById("compile-btn");
+      const benchmarkBtn = document.getElementById("benchmark-btn");
+      if (compileBtn) compileBtn.disabled = true;
+      if (benchmarkBtn) benchmarkBtn.disabled = true;
+
+      // Initialize on page load
+      initCompiler().then(() => {
+        // Auto-compile on initial load
+        compileZin();
+      });
+    </script>
+  </body>
+</html>

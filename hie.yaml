@@ -1,0 +1,6 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "exe:zin-compiler"
+    - path: "./test"
+      component: "test:zin-compiler-test"
