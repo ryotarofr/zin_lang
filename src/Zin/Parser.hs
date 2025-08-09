@@ -37,9 +37,7 @@ parseDocument :: [Token] -> Either ParseError Document
 parseDocument tokens = evalState (runExceptT parseDoc) initialState
   where
     initialState = ParserState 1 1 tokens [] Nothing
-    parseDoc = do
-      blocks <- parseBlocks
-      return (Document blocks)
+    parseDoc = Document <$> parseBlocks
 
 parseBlocks :: Parser [Block]
 parseBlocks = do
