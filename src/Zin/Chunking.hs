@@ -215,9 +215,12 @@ mergeChunks chunk1 chunk2 =
    in TextChunk newChunkId combinedContent newStartLine newEndLine newIndentLevel
 
 -- 大きすぎるチャンクを分割
+-- splitLargeChunks :: Int -> [TextChunk] -> [TextChunk]
+-- splitLargeChunks maxSize chunks =
+--   concatMap (splitIfTooLarge maxSize) chunks
+
 splitLargeChunks :: Int -> [TextChunk] -> [TextChunk]
-splitLargeChunks maxSize chunks =
-  concatMap (splitIfTooLarge maxSize) chunks
+splitLargeChunks maxSize = concatMap (splitIfTooLarge maxSize)
 
 splitIfTooLarge :: Int -> TextChunk -> [TextChunk]
 splitIfTooLarge maxSize chunk =
