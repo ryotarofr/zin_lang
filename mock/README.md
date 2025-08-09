@@ -6,7 +6,7 @@ cabal build
 
 # コンパイル実行
 
-cabal run zin-compiler mock/example.zin
+cabal run zin-compiler mock/example_simple.zin
 
 # テスト実行
 

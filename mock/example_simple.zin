@@ -32,3 +32,9 @@ tl : Deploy the compiler
 h2 : Quotes
 
 q italic[0:7] : Remember: simplicity is the ultimate sophistication.
+
+cb lang[python]:
+: def fibonacci(n)
+:    if n <= 1:
+:      return n
+:    return fibonacci(n- ibonacci(n-2))
