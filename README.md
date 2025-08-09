@@ -17,9 +17,7 @@ Zin コンパイラのモジュール構成：
 zin → Lexer → Parser → Semantic → CodeGen/VirtualDOM → HTML
 ```
 
-## 📚 詳細な例
-
-### サンプルコード
+## 📚 サンプルコード
 
 ```zin
 h1 bold[0:15] : Getting Started with Zin
