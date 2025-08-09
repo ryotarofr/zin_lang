@@ -141,10 +141,10 @@ parseRange rangeStr =
       _ -> Nothing
 
 isURL :: Text -> Bool
-isURL input = T.isPrefixOf "url[" input
+isURL = T.isPrefixOf "url["
 
 isLangTag :: Text -> Bool
-isLangTag input = T.isPrefixOf "lang[" input
+isLangTag = T.isPrefixOf "lang["
 
 parseLangTag :: Text -> LexerState (Token, Text)
 parseLangTag input = do

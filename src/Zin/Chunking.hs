@@ -15,8 +15,7 @@ module Zin.Chunking
 where
 
 import Control.Monad.State
-import Data.List (groupBy, sortBy)
-import Data.Ord (comparing)
+import Data.List (sort)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Zin.Incremental
@@ -47,45 +46,45 @@ chunkifyText strategy text =
 
 -- 行をチャンクに分割
 chunkifyLines :: ChunkingStrategy -> [IndentedLine] -> [TextChunk]
-chunkifyLines strategy lines =
+chunkifyLines strategy indentedLines =
   case strategy of
-    ByTopLevelBlocks -> chunkByTopLevelBlocks lines
-    ByLogicalSections -> chunkByLogicalSections lines
-    ByLineCount n -> chunkByLineCount n lines
-    ByCharacterCount n -> chunkByCharacterCount n lines
-    Adaptive -> chunkAdaptive lines
+    ByTopLevelBlocks -> chunkByTopLevelBlocks indentedLines
+    ByLogicalSections -> chunkByLogicalSections indentedLines
+    ByLineCount n -> chunkByLineCount n indentedLines
+    ByCharacterCount n -> chunkByCharacterCount n indentedLines
+    Adaptive -> chunkAdaptive indentedLines
 
 -- トップレベルブロック単位でチャンク分割
 chunkByTopLevelBlocks :: [IndentedLine] -> [TextChunk]
-chunkByTopLevelBlocks lines =
-  let boundaries = detectTopLevelBoundaries lines
-      chunks = splitByBoundaries boundaries lines
+chunkByTopLevelBlocks indentedLines =
+  let boundaries = detectTopLevelBoundaries indentedLines
+      chunks = splitByBoundaries boundaries indentedLines
    in map createChunkFromLines chunks
 
 -- 論理的セクション単位でチャンク分割
 chunkByLogicalSections :: [IndentedLine] -> [TextChunk]
-chunkByLogicalSections lines =
-  let boundaries = detectLogicalBoundaries lines
-      chunks = splitByBoundaries boundaries lines
+chunkByLogicalSections indentedLines =
+  let boundaries = detectLogicalBoundaries indentedLines
+      chunks = splitByBoundaries boundaries indentedLines
    in map createChunkFromLines chunks
 
 -- 行数単位でチャンク分割
 chunkByLineCount :: Int -> [IndentedLine] -> [TextChunk]
-chunkByLineCount chunkSize lines =
-  let chunkedLines = chunksOf chunkSize lines
+chunkByLineCount chunkSize indentedLines =
+  let chunkedLines = chunksOf chunkSize indentedLines
    in map createChunkFromLines chunkedLines
 
 -- 文字数単位でチャンク分割
 chunkByCharacterCount :: Int -> [IndentedLine] -> [TextChunk]
-chunkByCharacterCount maxChars lines =
-  let chunks = splitByCharacterCount maxChars lines
+chunkByCharacterCount maxChars indentedLines =
+  let chunks = splitByCharacterCount maxChars indentedLines
    in map createChunkFromLines chunks
 
 -- 適応的チャンク分割
 chunkAdaptive :: [IndentedLine] -> [TextChunk]
-chunkAdaptive lines =
+chunkAdaptive indentedLines =
   let -- まずトップレベルブロック単位で分割
-      topLevelChunks = chunkByTopLevelBlocks lines
+      topLevelChunks = chunkByTopLevelBlocks indentedLines
       -- 小さすぎるチャンクをマージ
       mergedChunks = mergeSmallChunks 50 topLevelChunks
       -- 大きすぎるチャンクを分割
@@ -94,24 +93,21 @@ chunkAdaptive lines =
 
 -- トップレベルブロック境界を検出
 detectTopLevelBoundaries :: [IndentedLine] -> [Int]
-detectTopLevelBoundaries lines =
-  let lineNumbers = map lineNumber lines
-      topLevelLines = filter (\line -> indentLevel line == 0 && not (T.null (content line))) lines
+detectTopLevelBoundaries indentedLines =
+  let topLevelLines = filter (\line -> indentLevel line == 0 && not (T.null (content line))) indentedLines
       topLevelNumbers = map lineNumber topLevelLines
    in topLevelNumbers
 
 -- 論理的境界を検出
 detectLogicalBoundaries :: [IndentedLine] -> [Int]
-detectLogicalBoundaries lines =
-  let linesWithBoundaries = [(lineNumber line, detectBoundaryTypes line) | line <- lines]
+detectLogicalBoundaries indentedLines =
+  let linesWithBoundaries = [(lineNumber line, detectBoundaryTypes line) | line <- indentedLines]
       filteredLines = filter (not . null . snd) linesWithBoundaries
    in map fst filteredLines
   where
     detectBoundaryTypes line =
       let lineContent = T.strip (content line)
-       in if isHeaderLine lineContent || isListStart lineContent || isTableStart lineContent
-            then [BlockBoundary]
-            else []
+       in [BlockBoundary | isHeaderLine lineContent || isListStart lineContent || isTableStart lineContent]
 
 -- ヘッダー行かどうか判定
 isHeaderLine :: Text -> Bool
@@ -123,39 +119,39 @@ isListStart text = any (`T.isPrefixOf` text) ["ul:", "ol:", "tl:"]
 
 -- テーブル開始行かどうか判定
 isTableStart :: Text -> Bool
-isTableStart text = T.isPrefixOf "t:" text
+isTableStart = T.isPrefixOf "t:"
 
 -- 境界に基づいて分割
 splitByBoundaries :: [Int] -> [IndentedLine] -> [[IndentedLine]]
-splitByBoundaries [] lines = [lines]
-splitByBoundaries boundaries lines =
-  let sortedBoundaries = sortBy compare boundaries
-   in splitByBoundariesHelper sortedBoundaries lines
+splitByBoundaries [] indentedLines = [indentedLines]
+splitByBoundaries boundaries indentedLines =
+  let sortedBoundaries = sort boundaries
+   in splitByBoundariesHelper sortedBoundaries indentedLines
 
 splitByBoundariesHelper :: [Int] -> [IndentedLine] -> [[IndentedLine]]
-splitByBoundariesHelper [] lines = [lines]
-splitByBoundariesHelper [_] lines = [lines]
-splitByBoundariesHelper (b1 : b2 : rest) lines =
-  let (chunk, remaining) = span (\line -> lineNumber line < b2) lines
+splitByBoundariesHelper [] indentedLines = [indentedLines]
+splitByBoundariesHelper [_] indentedLines = [indentedLines]
+splitByBoundariesHelper (_ : b2 : rest) indentedLines =
+  let (chunk, remaining) = span (\line -> lineNumber line < b2) indentedLines
    in chunk : splitByBoundariesHelper (b2 : rest) remaining
 
 -- 文字数で分割
 splitByCharacterCount :: Int -> [IndentedLine] -> [[IndentedLine]]
-splitByCharacterCount maxChars lines =
-  evalState (splitByCharacterCountM maxChars lines) 0
+splitByCharacterCount maxChars indentedLines =
+  evalState (splitByCharacterCountM maxChars indentedLines) 0
 
 splitByCharacterCountM :: Int -> [IndentedLine] -> State Int [[IndentedLine]]
 splitByCharacterCountM _ [] = return []
-splitByCharacterCountM maxChars lines = do
+splitByCharacterCountM maxChars indentedLines = do
   currentCount <- get
-  let (chunk, remaining) = takeWhileCharCount maxChars currentCount lines
+  let (chunk, remaining) = takeWhileCharCount maxChars currentCount indentedLines
   put 0 -- リセット
   rest <- splitByCharacterCountM maxChars remaining
   return (chunk : rest)
 
 takeWhileCharCount :: Int -> Int -> [IndentedLine] -> ([IndentedLine], [IndentedLine])
-takeWhileCharCount maxChars currentCount lines =
-  case lines of
+takeWhileCharCount maxChars currentCount indentedLines =
+  case indentedLines of
     [] -> ([], [])
     (line : rest) ->
       let lineLength = T.length (content line)
@@ -164,20 +160,20 @@ takeWhileCharCount maxChars currentCount lines =
             then
               let (taken, remaining) = takeWhileCharCount maxChars newCount rest
                in (line : taken, remaining)
-            else ([], lines)
+            else ([], indentedLines)
 
 -- 行をTextChunkに変換
 createChunkFromLines :: [IndentedLine] -> TextChunk
 createChunkFromLines [] =
   let emptyId = createChunkId ""
    in TextChunk emptyId "" 0 0 0
-createChunkFromLines lines =
-  let startLine = minimum $ map lineNumber lines
-      endLine = maximum $ map lineNumber lines
-      minIndent = minimum $ map indentLevel lines
-      combinedContent = T.unlines $ map content lines
-      chunkId = createChunkId combinedContent
-   in TextChunk chunkId combinedContent startLine endLine minIndent
+createChunkFromLines indentedLines =
+  let startLine = minimum $ map lineNumber indentedLines
+      endLine = maximum $ map lineNumber indentedLines
+      minIndent = minimum $ map indentLevel indentedLines
+      combinedContent = T.unlines $ map content indentedLines
+      newChunkId = createChunkId combinedContent
+   in TextChunk newChunkId combinedContent startLine endLine minIndent
 
 -- ユーティリティ: リストを指定サイズのチャンクに分割
 chunksOf :: Int -> [a] -> [[a]]
@@ -188,20 +184,16 @@ chunksOf n list =
 
 -- 小さなチャンクをマージ
 mergeSmallChunks :: Int -> [TextChunk] -> [TextChunk]
-mergeSmallChunks minSize chunks =
-  mergeContinuousSmallChunks minSize chunks
-
-mergeContinuousSmallChunks :: Int -> [TextChunk] -> [TextChunk]
-mergeContinuousSmallChunks _ [] = []
-mergeContinuousSmallChunks _ [chunk] = [chunk]
-mergeContinuousSmallChunks minSize (chunk1 : chunk2 : rest) =
+mergeSmallChunks _ [] = []
+mergeSmallChunks _ [chunk] = [chunk]
+mergeSmallChunks minSize (chunk1 : chunk2 : rest) =
   let size1 = T.length (chunkContent chunk1)
       size2 = T.length (chunkContent chunk2)
    in if size1 < minSize && size2 < minSize && canMergeChunks chunk1 chunk2
         then
           let mergedChunk = mergeChunks chunk1 chunk2
-           in mergeContinuousSmallChunks minSize (mergedChunk : rest)
-        else chunk1 : mergeContinuousSmallChunks minSize (chunk2 : rest)
+           in mergeSmallChunks minSize (mergedChunk : rest)
+        else chunk1 : mergeSmallChunks minSize (chunk2 : rest)
 
 -- チャンクがマージ可能かチェック
 canMergeChunks :: TextChunk -> TextChunk -> Bool
@@ -222,35 +214,34 @@ mergeChunks chunk1 chunk2 =
 
 -- 大きすぎるチャンクを分割
 splitLargeChunks :: Int -> [TextChunk] -> [TextChunk]
-splitLargeChunks maxSize chunks =
-  concatMap (splitIfTooLarge maxSize) chunks
+splitLargeChunks maxSize = concatMap (splitIfTooLarge maxSize)
 
 splitIfTooLarge :: Int -> TextChunk -> [TextChunk]
 splitIfTooLarge maxSize chunk =
-  let content = chunkContent chunk
-      contentLength = T.length content
+  let chunkTxt = chunkContent chunk
+      contentLength = T.length chunkTxt
    in if contentLength <= maxSize
         then [chunk]
         else splitChunkBySize maxSize chunk
 
 splitChunkBySize :: Int -> TextChunk -> [TextChunk]
 splitChunkBySize maxSize chunk =
-  let lines = T.lines (chunkContent chunk)
-      lineCount = length lines
+  let textLines = T.lines (chunkContent chunk)
+      lineCount = length textLines
       avgLineLength = if lineCount > 0 then T.length (chunkContent chunk) `div` lineCount else 0
       estimatedLinesPerChunk = if avgLineLength > 0 then maxSize `div` avgLineLength else 10
-      chunkedLines = chunksOf (max 1 estimatedLinesPerChunk) lines
+      chunkedLines = chunksOf (max 1 estimatedLinesPerChunk) textLines
    in map (createChunkFromTextLines (chunkStartLine chunk)) chunkedLines
 
 createChunkFromTextLines :: Int -> [Text] -> TextChunk
 createChunkFromTextLines startLineOffset textLines =
   let combinedContent = T.unlines textLines
-      chunkId = createChunkId combinedContent
+      newChunkId = createChunkId combinedContent
       lineCount = length textLines
       endLine = startLineOffset + lineCount - 1
       -- インデントレベルは最初の行から推定
-      indentLevel = if null textLines then 0 else T.length $ T.takeWhile (\c -> c == ' ' || c == '\t') (head textLines)
-   in TextChunk chunkId combinedContent startLineOffset endLine indentLevel
+      computedIndentLevel = if null textLines then 0 else T.length $ T.takeWhile (\c -> c == ' ' || c == '\t') (head textLines)
+   in TextChunk newChunkId combinedContent startLineOffset endLine computedIndentLevel
 
 -- チャンクを最適化
 optimizeChunks :: [TextChunk] -> [TextChunk]
@@ -265,8 +256,7 @@ optimizeChunks chunks =
 
 -- チャンク境界を検出
 detectChunkBoundaries :: [IndentedLine] -> [(Int, ChunkBoundary)]
-detectChunkBoundaries lines =
-  concatMap detectLineBoundary lines
+detectChunkBoundaries = concatMap detectLineBoundary
   where
     detectLineBoundary line =
       let lineNum = lineNumber line
@@ -295,7 +285,7 @@ findDependencies targetChunk allChunks =
 
 -- コンテンツから参照を抽出（簡易実装）
 extractReferences :: Text -> [ChunkId]
-extractReferences content =
+extractReferences _ =
   -- 実際の実装では、リンクや参照構文を解析
   -- ここでは簡単な例として空リストを返す
   []

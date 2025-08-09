@@ -23,16 +23,15 @@ module Zin.Cache
   )
 where
 
-import Control.Exception (SomeException, try)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Data.Aeson as Aeson
 import Data.List (minimumBy)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Ord (comparing)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
+import Data.Time (UTCTime, addUTCTime, getCurrentTime)
 import GHC.Generics (Generic)
 import System.Directory (doesFileExist, removeFile)
 import Zin.Incremental
@@ -125,13 +124,12 @@ emptyStats = do
 createCacheManager :: CachePolicy -> IO CacheManager
 createCacheManager policy = do
   stats <- emptyStats
-  manager <-
-    return
-      CacheManager
-        { cacheEntries = Map.empty,
-          cachePolicy = policy,
-          cacheStats = stats
-        }
+  let manager =
+        CacheManager
+          { cacheEntries = Map.empty,
+            cachePolicy = policy,
+            cacheStats = stats
+          }
 
   -- ディスクからの読み込み
   if persistToDisk policy
@@ -247,7 +245,10 @@ getCacheStats :: CacheManager -> CacheStats
 getCacheStats = cacheStats
 
 -- キャッシュポリシーの強制適用
-enforcePolicy :: CacheManager -> IO CacheManager
+enforcePolicy ::
+  CacheManager ->
+  IO
+    CacheManager
 enforcePolicy manager = do
   let policy = cachePolicy manager
   let currentEntries = Map.size (cacheEntries manager)
@@ -259,13 +260,9 @@ enforcePolicy manager = do
       then evictEntries (currentEntries - maxCacheEntries policy) manager
       else return manager
 
-  -- メモリ制限のチェック
-  manager2 <-
-    if currentMemory > maxCacheMemory policy
-      then evictByMemory (currentMemory - maxCacheMemory policy) manager1
-      else return manager1
-
-  return manager2
+  if currentMemory > maxCacheMemory policy
+    then evictByMemory (currentMemory - maxCacheMemory policy) manager1
+    else return manager1 -- これが関数の戻り値になる
 
 -- エントリの立ち退き（エントリ数制限）
 evictEntries :: Int -> CacheManager -> IO CacheManager
@@ -411,6 +408,4 @@ loadCacheFromFile filepath = do
 deleteCacheFile :: FilePath -> IO ()
 deleteCacheFile filepath = do
   exists <- doesFileExist filepath
-  if exists
-    then removeFile filepath
-    else return ()
+  when exists $ removeFile filepath
