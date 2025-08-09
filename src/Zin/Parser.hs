@@ -8,6 +8,7 @@ where
 
 import Control.Monad.Except
 import Control.Monad.State
+import Data.Maybe (fromJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Zin.AST
@@ -38,29 +39,151 @@ parseDocument tokenList = evalState (runExceptT parseDoc) initialState
     parseDoc = Document <$> parseBlocks
 
 parseBlocks :: Parser [Block]
-parseBlocks = do
+parseBlocks = parseBlocksWithContext Nothing
+
+parseBlocksWithContext :: Maybe Text -> Parser [Block]
+parseBlocksWithContext lastTag = do
   token <- peekToken
   case token of
     EOF -> return []
     Newline -> do
       _ <- consumeToken
-      parseBlocks
+      parseBlocksWithContext lastTag
     Comment _ -> do
       _ <- consumeToken
-      parseBlocks
+      parseBlocksWithContext lastTag
     Indent _ -> do
       _ <- consumeToken
-      parseBlocks
+      -- Check if next token is a colon (continuation of previous block)
+      nextToken <- peekToken
+      case nextToken of
+        Colon | Just tag <- lastTag -> do
+          _ <- consumeToken -- consume colon
+          -- Handle different tag types
+          case tag of
+            t | t `elem` ["ul", "ol", "tl"] -> do
+              text <- parseTextContent
+              let item = ListItem [] text
+              let listType = fromJust $ getListType tag
+              rest <- parseBlocksWithContext lastTag
+              case rest of
+                (List lt items : blocks)
+                  | lt == listType ->
+                      return (List listType (item : items) : blocks)
+                _ ->
+                  return (List listType [item] : rest)
+            "p" -> do
+              text <- parseTextContent
+              moreLines <- collectTextContinuations
+              let fullText =
+                    if T.null moreLines
+                      then text
+                      else text <> " " <> moreLines
+              rest <- parseBlocksWithContext Nothing -- Reset context after collecting all continuations
+              return (Paragraph [] fullText : rest)
+            "q" -> do
+              text <- parseTextContent
+              moreLines <- collectTextContinuations
+              let fullText =
+                    if T.null moreLines
+                      then text
+                      else text <> " " <> moreLines
+              rest <- parseBlocksWithContext Nothing -- Reset context after collecting all continuations
+              return (Quote [] fullText : rest)
+            t | t `elem` ["h1", "h2", "h3", "h4"] -> do
+              text <- parseTextContent
+              let level = fromJust $ getHeaderLevel tag
+              moreLines <- collectTextContinuations
+              let fullText =
+                    if T.null moreLines
+                      then text
+                      else text <> " " <> moreLines
+              rest <- parseBlocksWithContext Nothing -- Reset context after collecting all continuations
+              return (Header level [] fullText : rest)
+            _ -> parseBlocksWithContext lastTag
+        _ -> parseBlocksWithContext lastTag
+    Colon | Just tag <- lastTag -> do
+      _ <- consumeToken -- consume colon
+      -- Handle different tag types at top level (without indent)
+      case tag of
+        t | t `elem` ["ul", "ol", "tl"] -> do
+          text <- parseTextContent
+          let item = ListItem [] text
+          let listType = fromJust $ getListType tag
+          rest <- parseBlocksWithContext lastTag
+          case rest of
+            (List lt items : blocks)
+              | lt == listType ->
+                  return (List listType (item : items) : blocks)
+            _ ->
+              return (List listType [item] : rest)
+        "p" -> do
+          text <- parseTextContent
+          moreLines <- collectTextContinuations
+          let fullText =
+                if T.null moreLines
+                  then text
+                  else text <> " " <> moreLines
+          rest <- parseBlocksWithContext Nothing -- Reset context after collecting all continuations
+          return (Paragraph [] fullText : rest)
+        "q" -> do
+          text <- parseTextContent
+          moreLines <- collectTextContinuations
+          let fullText =
+                if T.null moreLines
+                  then text
+                  else text <> " " <> moreLines
+          rest <- parseBlocksWithContext Nothing -- Reset context after collecting all continuations
+          return (Quote [] fullText : rest)
+        t | t `elem` ["h1", "h2", "h3", "h4"] -> do
+          text <- parseTextContent
+          let level = fromJust $ getHeaderLevel tag
+          moreLines <- collectTextContinuations
+          let fullText =
+                if T.null moreLines
+                  then text
+                  else text <> " " <> moreLines
+          rest <- parseBlocksWithContext Nothing -- Reset context after collecting all continuations
+          return (Header level [] fullText : rest)
+        _ -> do
+          parseBlocksWithContext lastTag
     Colon -> do
       _ <- consumeToken
-      parseBlocks
+      parseBlocksWithContext lastTag
     TopLevelTag tag | tag `elem` ["t", "r"] -> do
       tableBlock <- parseTable
-      rest <- parseBlocks
+      rest <- parseBlocksWithContext Nothing -- Reset context after table
       return (tableBlock : rest)
+    TopLevelTag tag | tag `elem` ["ul", "ol", "tl"] -> do
+      listBlock <- parseList tag
+      -- Continue parsing with this list tag as context
+      rest <- parseBlocksWithContext (Just tag)
+      -- Try to merge consecutive lists of same type
+      case (listBlock, rest) of
+        (List lt1 items1, List lt2 items2 : blocks)
+          | lt1 == lt2 ->
+              return (List lt1 (items1 ++ items2) : blocks)
+        _ ->
+          return (listBlock : rest)
+    TopLevelTag tag | tag == "p" -> do
+      -- Parse paragraph
+      block <- parseParagraph
+      -- Continue parsing with this paragraph's context for continuation lines
+      rest <- parseBlocksWithContext (Just tag)
+      -- Check if the next block is from a continuation line (not a new p tag)
+      -- Continuation lines are already merged in parseBlocksWithContext
+      -- so we just return the block and rest as separate items
+      return (block : rest)
+    TopLevelTag tag | tag `elem` ["q", "h1", "h2", "h3", "h4"] -> do
+      -- Parse the tag and collect continuation lines within the same parse
+      block <- parseTopLevelBlock tag
+      -- Continue parsing with this tag as context for continuation lines only
+      rest <- parseBlocksWithContext (Just tag)
+      -- DON'T merge explicit tag repetitions - each explicit tag creates a new element
+      return (block : rest)
     _ -> do
       block <- parseBlock
-      rest <- parseBlocks
+      rest <- parseBlocksWithContext Nothing -- Reset context after unknown block
       return (block : rest)
 
 parseBlock :: Parser Block
@@ -87,7 +210,8 @@ parseParagraph = do
   styles <- collectStyles
   expectColon
   text <- parseTextContent
-  continuationText <- parseContinuationLines
+  -- Collect continuation lines with : prefix
+  continuationText <- collectTextContinuations
   let fullText =
         if T.null continuationText
           then text
@@ -100,8 +224,14 @@ parseHeader tag = do
   styles <- collectStyles
   expectColon
   text <- parseTextContent
+  -- Collect continuation lines with : prefix
+  continuationText <- collectTextContinuations
+  let fullText =
+        if T.null continuationText
+          then text
+          else text <> " " <> continuationText
   case getHeaderLevel tag of
-    Just level -> return (Header level styles text)
+    Just level -> return (Header level styles fullText)
     Nothing -> throwError (UnknownTag tag)
 
 parseList :: Text -> Parser Block
@@ -261,7 +391,14 @@ parseQuote = do
   _ <- consumeToken -- consume 'q'
   styles <- collectStyles
   expectColon
-  Quote styles <$> parseTextContent
+  text <- parseTextContent
+  -- Collect continuation lines with : prefix
+  continuationText <- collectTextContinuations
+  let fullText =
+        if T.null continuationText
+          then text
+          else text <> " " <> continuationText
+  return (Quote styles fullText)
 
 parseTable :: Parser Block
 parseTable = do
@@ -503,6 +640,59 @@ parseMultiLineText = do
         _ -> return ""
     EOF -> return ""
     _ -> return ""
+
+-- Helper function to collect text continuations (: lines) for any tag
+collectTextContinuations :: Parser Text
+collectTextContinuations = do
+  token <- peekToken
+  case token of
+    Newline -> do
+      _ <- consumeToken
+      nextToken <- peekToken
+      case nextToken of
+        -- Check for indented continuation
+        Indent _ -> do
+          _ <- consumeToken
+          colonToken <- peekToken
+          case colonToken of
+            Colon -> do
+              _ <- consumeToken
+              text <- parseTextContent
+              moreText <- collectTextContinuations
+              return $
+                if T.null moreText
+                  then text
+                  else text <> " " <> moreText
+            _ -> return ""
+        -- Check for non-indented continuation
+        Colon -> do
+          _ <- consumeToken
+          text <- parseTextContent
+          moreText <- collectTextContinuations
+          return $
+            if T.null moreText
+              then text
+              else text <> " " <> moreText
+        _ -> return ""
+    -- Check for immediate continuation (no newline)
+    Colon -> do
+      _ <- consumeToken
+      text <- parseTextContent
+      moreText <- collectTextContinuations
+      return $
+        if T.null moreText
+          then text
+          else text <> " " <> moreText
+    _ -> return ""
+
+-- Helper functions for extracting paragraph data
+getParagraphStyles :: Block -> [Style]
+getParagraphStyles (Paragraph styles _) = styles
+getParagraphStyles _ = []
+
+getParagraphText :: Block -> Text
+getParagraphText (Paragraph _ text) = text
+getParagraphText _ = ""
 
 -- Parser utility functions
 peekToken :: Parser Token
