@@ -246,7 +246,10 @@ getCacheStats :: CacheManager -> CacheStats
 getCacheStats = cacheStats
 
 -- キャッシュポリシーの強制適用
-enforcePolicy :: CacheManager -> IO CacheManager
+enforcePolicy ::
+  CacheManager ->
+  IO
+    CacheManager
 enforcePolicy manager = do
   let policy = cachePolicy manager
   let currentEntries = Map.size (cacheEntries manager)
@@ -258,13 +261,9 @@ enforcePolicy manager = do
       then evictEntries (currentEntries - maxCacheEntries policy) manager
       else return manager
 
-  -- メモリ制限のチェック
-  manager2 <-
-    if currentMemory > maxCacheMemory policy
-      then evictByMemory (currentMemory - maxCacheMemory policy) manager1
-      else return manager1
-
-  return manager2
+  if currentMemory > maxCacheMemory policy
+    then evictByMemory (currentMemory - maxCacheMemory policy) manager1
+    else return manager1 -- これが関数の戻り値になる
 
 -- エントリの立ち退き（エントリ数制限）
 evictEntries :: Int -> CacheManager -> IO CacheManager
