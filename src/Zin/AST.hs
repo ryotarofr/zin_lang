@@ -22,8 +22,7 @@ where
 import Data.Text (Text)
 import qualified Data.Text as T
 
-data Document = Document [Block]
-  deriving (Show, Eq)
+newtype Document = Document [Block]
 
 data Block
   = Paragraph [Style] Text
