@@ -6,10 +6,8 @@ module Zin.Parser
   )
 where
 
-import Control.Monad
 import Control.Monad.Except
 import Control.Monad.State
-import Data.List (groupBy)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Zin.AST
@@ -34,9 +32,9 @@ parseZinFile input =
    in parseDocument tokenList
 
 parseDocument :: [Token] -> Either ParseError Document
-parseDocument tokens = evalState (runExceptT parseDoc) initialState
+parseDocument tokenList = evalState (runExceptT parseDoc) initialState
   where
-    initialState = ParserState 1 1 tokens [] Nothing
+    initialState = ParserState 1 1 tokenList [] Nothing
     parseDoc = Document <$> parseBlocks
 
 parseBlocks :: Parser [Block]
@@ -98,7 +96,7 @@ parseParagraph = do
 
 parseHeader :: Text -> Parser Block
 parseHeader tag = do
-  consumeToken -- consume header tag
+  _ <- consumeToken -- consume header tag
   styles <- collectStyles
   expectColon
   text <- parseTextContent
@@ -108,7 +106,7 @@ parseHeader tag = do
 
 parseList :: Text -> Parser Block
 parseList tag = do
-  consumeToken -- consume list tag
+  _ <- consumeToken -- consume list tag
   case getListType tag of
     Just listType -> do
       -- Check if next token is colon followed by newline (new syntax)
@@ -121,22 +119,19 @@ parseList tag = do
           case newlineToken of
             Newline -> do
               _ <- consumeToken -- consume newline
-              items <- parseNewStyleListItems
-              return (List listType items)
+              List listType <$> parseNewStyleListItems
             _ -> do
               -- Old syntax: single item after colon
               text <- parseTextContent
               if T.null (T.strip text)
                 then do
-                  items <- parseListItems
-                  return (List listType items)
+                  List listType <$> parseListItems
                 else do
                   let item = ListItem [] text
                   rest <- parseListItems
                   return (List listType (item : rest))
         _ -> do
-          items <- parseListItems
-          return (List listType items)
+          List listType <$> parseListItems
     Nothing -> throwError (UnknownTag tag)
 
 parseNewStyleListItems :: Parser [ListItem]
@@ -208,13 +203,13 @@ parseContinuationLines = do
 
 parseCodeBlock :: Parser Block
 parseCodeBlock = do
-  consumeToken -- consume 'cb'
+  _ <- consumeToken -- consume 'cb'
 
   -- Check if there's a lang[...] specification
   langToken <- peekToken
   case langToken of
     LangTag lang -> do
-      consumeToken -- consume lang[...]
+      _ <- consumeToken -- consume lang[...]
       expectColon
       -- For code blocks, we don't need to preserve spaces after colon on first line
       code <- parseCodeBlockContent
@@ -241,21 +236,20 @@ parseCodeBlock = do
           nextToken <- peekToken
           case nextToken of
             Newline -> do
-              consumeToken
+              _ <- consumeToken
               indentToken <- peekToken
               case indentToken of
                 Indent _ -> do
-                  consumeToken
+                  _ <- consumeToken
                   langOrCodeToken <- peekToken
                   case langOrCodeToken of
                     Text lang -> do
-                      consumeToken
+                      _ <- consumeToken
                       colonToken <- peekToken
                       case colonToken of
                         Colon -> do
-                          consumeToken
-                          moreCode <- parseMultiLineText
-                          return (CodeBlock lang moreCode)
+                          _ <- consumeToken
+                          CodeBlock lang <$> parseMultiLineText
                         _ -> return (CodeBlock "txt" lang)
                     _ -> return (CodeBlock "txt" "")
                 _ -> return (CodeBlock "txt" "")
@@ -264,24 +258,23 @@ parseCodeBlock = do
 
 parseQuote :: Parser Block
 parseQuote = do
-  consumeToken -- consume 'q'
+  _ <- consumeToken -- consume 'q'
   styles <- collectStyles
   expectColon
-  text <- parseTextContent
-  return (Quote styles text)
+  Quote styles <$> parseTextContent
 
 parseTable :: Parser Block
 parseTable = do
   firstToken <- peekToken
   case firstToken of
     TopLevelTag tag | tag == "t" -> do
-      consumeToken -- consume 't'
+      _ <- consumeToken -- consume 't'
       expectColon
       headers <- parseTableCells
       rows <- parseTableRows
       return (Table (HeaderRow headers : rows))
     TopLevelTag tag | tag == "r" -> do
-      consumeToken -- consume 'r'
+      _ <- consumeToken -- consume 'r'
       expectColon
       cells <- parseTableCells
       rows <- parseTableRows
@@ -293,10 +286,10 @@ parseTableRows = do
   token <- peekToken
   case token of
     Newline -> do
-      consumeToken
+      _ <- consumeToken
       parseTableRows -- Skip newlines and continue
     TopLevelTag tag | tag `elem` ["t", "r"] -> do
-      consumeToken -- consume tag
+      _ <- consumeToken -- consume tag
       expectColon
       cells <- parseTableCells
       rest <- parseTableRows
@@ -305,19 +298,16 @@ parseTableRows = do
     _ -> return []
 
 parseTableCells :: Parser [Text]
-parseTableCells = do
-  -- テーブルの場合は特別な処理を行う
-  fullText <- parseTableText
-  return (parseTableCellsFromText fullText)
+parseTableCells = do parseTableCellsFromText <$> parseTableText
 
 parseTableText :: Parser Text
 parseTableText = do
   token <- peekToken
   case token of
-    Text content -> do
+    Text source -> do
       _ <- consumeToken
       rest <- parseTableText
-      return (content <> rest)
+      return (source <> rest)
     Pipe -> do
       _ <- consumeToken
       rest <- parseTableText
@@ -342,7 +332,7 @@ collectStyles = do
   token <- peekToken
   case token of
     StyleTag name range -> do
-      consumeToken
+      _ <- consumeToken
       url <- collectURL
       let style = createStyle name range url
       rest <- collectStyles
@@ -354,7 +344,7 @@ collectURL = do
   token <- peekToken
   case token of
     URL url -> do
-      consumeToken
+      _ <- consumeToken
       return (Just url)
     _ -> return Nothing
 
@@ -370,22 +360,22 @@ parseTextContent :: Parser Text
 parseTextContent = do
   token <- peekToken
   case token of
-    Text content -> do
-      consumeToken
+    Text source -> do
+      _ <- consumeToken
       rest <- parseTextContent
-      return (content <> rest)
+      return (source <> rest)
     _ -> return ""
 
 parseTextContentWithColons :: Parser Text
 parseTextContentWithColons = do
   token <- peekToken
   case token of
-    Text content -> do
-      consumeToken
+    Text source -> do
+      _ <- consumeToken
       rest <- parseTextContentWithColons
-      return (content <> rest)
+      return (source <> rest)
     Colon -> do
-      consumeToken
+      _ <- consumeToken
       rest <- parseTextContentWithColons
       return (":" <> rest)
     _ -> return ""
@@ -394,28 +384,28 @@ parseCodeBlockContent :: Parser Text
 parseCodeBlockContent = do
   token <- peekToken
   case token of
-    Text content -> do
-      consumeToken
+    Text source -> do
+      _ <- consumeToken
       rest <- parseCodeBlockContent
-      return (content <> rest)
+      return (source <> rest)
     Colon -> do
-      consumeToken
+      _ <- consumeToken
       rest <- parseCodeBlockContent
       return (":" <> rest)
     Pipe -> do
-      consumeToken
+      _ <- consumeToken
       rest <- parseCodeBlockContent
       return ("|" <> rest)
     StyleTag tagName range -> do
-      consumeToken
+      _ <- consumeToken
       rest <- parseCodeBlockContent
       return (tagName <> "[" <> T.intercalate ":" (map (T.pack . show) range) <> "]" <> rest)
     LangTag lang -> do
-      consumeToken
+      _ <- consumeToken
       rest <- parseCodeBlockContent
       return ("lang[" <> lang <> "]" <> rest)
     URL url -> do
-      consumeToken
+      _ <- consumeToken
       rest <- parseCodeBlockContent
       return ("url[" <> url <> "]" <> rest)
     Newline -> return "" -- Stop at newline but don't consume it
@@ -494,15 +484,15 @@ parseMultiLineText = do
   token <- peekToken
   case token of
     Newline -> do
-      consumeToken
+      _ <- consumeToken
       nextToken <- peekToken
       case nextToken of
         Indent _ -> do
-          consumeToken
+          _ <- consumeToken
           colonToken <- peekToken
           case colonToken of
             Colon -> do
-              consumeToken
+              _ <- consumeToken
               text <- parseTextContentWithColons
               rest <- parseMultiLineText
               return $
@@ -517,18 +507,18 @@ parseMultiLineText = do
 -- Parser utility functions
 peekToken :: Parser Token
 peekToken = do
-  state <- get
-  case tokens state of
+  parserState <- get
+  case tokens parserState of
     [] -> return EOF
     (t : _) -> return t
 
 consumeToken :: Parser Token
 consumeToken = do
-  state <- get
-  case tokens state of
+  parserState <- get
+  case tokens parserState of
     [] -> return EOF
     (t : ts) -> do
-      put state {tokens = ts}
+      put parserState {tokens = ts}
       return t
 
 expectColon :: Parser ()
@@ -550,19 +540,19 @@ parseSpacesAfterColon :: Parser Text
 parseSpacesAfterColon = do
   token <- peekToken
   case token of
-    Text content ->
+    Text source ->
       -- If the text starts with spaces, consume only the spaces part
-      let spaces = T.takeWhile (== ' ') content
+      let spaces = T.takeWhile (== ' ') source
        in if T.null spaces
             then return ""
             else do
               -- Update tokens to consume only the spaces
-              state <- get
-              let remainingText = T.dropWhile (== ' ') content
+              parserState <- get
+              let remainingText = T.dropWhile (== ' ') source
               let newTokens =
                     if T.null remainingText
-                      then tail (tokens state) -- Consume entire token
-                      else Text remainingText : tail (tokens state) -- Leave non-space part
-              put state {tokens = newTokens}
+                      then tail (tokens parserState) -- Consume entire token
+                      else Text remainingText : tail (tokens parserState) -- Leave non-space part
+              put parserState {tokens = newTokens}
               return spaces
     _ -> return ""
