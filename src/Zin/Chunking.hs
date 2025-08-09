@@ -121,7 +121,7 @@ isListStart text = any (`T.isPrefixOf` text) ["ul:", "ol:", "tl:"]
 
 -- テーブル開始行かどうか判定
 isTableStart :: Text -> Bool
-isTableStart text = T.isPrefixOf "t:" text
+isTableStart = T.isPrefixOf "t:"
 
 -- 境界に基づいて分割
 splitByBoundaries :: [Int] -> [IndentedLine] -> [[IndentedLine]]
