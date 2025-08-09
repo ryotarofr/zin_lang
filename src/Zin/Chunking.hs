@@ -109,9 +109,7 @@ detectLogicalBoundaries lines =
   where
     detectBoundaryTypes line =
       let lineContent = T.strip (content line)
-       in if isHeaderLine lineContent || isListStart lineContent || isTableStart lineContent
-            then [BlockBoundary]
-            else []
+       in [BlockBoundary | isHeaderLine lineContent || isListStart lineContent || isTableStart lineContent]
 
 -- ヘッダー行かどうか判定
 isHeaderLine :: Text -> Bool
