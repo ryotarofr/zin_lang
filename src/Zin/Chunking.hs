@@ -258,8 +258,7 @@ optimizeChunks chunks =
 
 -- チャンク境界を検出
 detectChunkBoundaries :: [IndentedLine] -> [(Int, ChunkBoundary)]
-detectChunkBoundaries lines =
-  concatMap detectLineBoundary lines
+detectChunkBoundaries = concatMap detectLineBoundary
   where
     detectLineBoundary line =
       let lineNum = lineNumber line
