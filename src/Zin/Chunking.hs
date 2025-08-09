@@ -186,20 +186,16 @@ chunksOf n list =
 
 -- 小さなチャンクをマージ
 mergeSmallChunks :: Int -> [TextChunk] -> [TextChunk]
-mergeSmallChunks minSize chunks =
-  mergeContinuousSmallChunks minSize chunks
-
-mergeContinuousSmallChunks :: Int -> [TextChunk] -> [TextChunk]
-mergeContinuousSmallChunks _ [] = []
-mergeContinuousSmallChunks _ [chunk] = [chunk]
-mergeContinuousSmallChunks minSize (chunk1 : chunk2 : rest) =
+mergeSmallChunks _ [] = []
+mergeSmallChunks _ [chunk] = [chunk]
+mergeSmallChunks minSize (chunk1 : chunk2 : rest) =
   let size1 = T.length (chunkContent chunk1)
       size2 = T.length (chunkContent chunk2)
    in if size1 < minSize && size2 < minSize && canMergeChunks chunk1 chunk2
         then
           let mergedChunk = mergeChunks chunk1 chunk2
-           in mergeContinuousSmallChunks minSize (mergedChunk : rest)
-        else chunk1 : mergeContinuousSmallChunks minSize (chunk2 : rest)
+           in mergeSmallChunks minSize (mergedChunk : rest)
+        else chunk1 : mergeSmallChunks minSize (chunk2 : rest)
 
 -- チャンクがマージ可能かチェック
 canMergeChunks :: TextChunk -> TextChunk -> Bool
