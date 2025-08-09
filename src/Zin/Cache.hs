@@ -23,16 +23,15 @@ module Zin.Cache
   )
 where
 
-import Control.Exception (SomeException, try)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Data.Aeson as Aeson
 import Data.List (minimumBy)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Ord (comparing)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
+import Data.Time (UTCTime, addUTCTime, getCurrentTime)
 import GHC.Generics (Generic)
 import System.Directory (doesFileExist, removeFile)
 import Zin.Incremental
@@ -409,6 +408,4 @@ loadCacheFromFile filepath = do
 deleteCacheFile :: FilePath -> IO ()
 deleteCacheFile filepath = do
   exists <- doesFileExist filepath
-  if exists
-    then removeFile filepath
-    else return ()
+  when exists $ removeFile filepath
