@@ -15,7 +15,7 @@ module Zin.Chunking
 where
 
 import Control.Monad.State
-import Data.List (groupBy, sortBy)
+import Data.List (groupBy, sort, sortBy)
 import Data.Ord (comparing)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -127,7 +127,7 @@ isTableStart = T.isPrefixOf "t:"
 splitByBoundaries :: [Int] -> [IndentedLine] -> [[IndentedLine]]
 splitByBoundaries [] lines = [lines]
 splitByBoundaries boundaries lines =
-  let sortedBoundaries = sortBy compare boundaries
+  let sortedBoundaries = sort boundaries
    in splitByBoundariesHelper sortedBoundaries lines
 
 splitByBoundariesHelper :: [Int] -> [IndentedLine] -> [[IndentedLine]]
