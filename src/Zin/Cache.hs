@@ -125,13 +125,12 @@ emptyStats = do
 createCacheManager :: CachePolicy -> IO CacheManager
 createCacheManager policy = do
   stats <- emptyStats
-  manager <-
-    return
-      CacheManager
-        { cacheEntries = Map.empty,
-          cachePolicy = policy,
-          cacheStats = stats
-        }
+  let manager =
+        CacheManager
+          { cacheEntries = Map.empty,
+            cachePolicy = policy,
+            cacheStats = stats
+          }
 
   -- ディスクからの読み込み
   if persistToDisk policy
