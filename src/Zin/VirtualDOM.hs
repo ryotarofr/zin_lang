@@ -16,6 +16,25 @@ module Zin.VirtualDOM
     renderVNode,
     diffVNodes,
     applyPatches,
+    h1,
+    h2,
+    h3,
+    h4,
+    p,
+    ul,
+    ol,
+    li,
+    table,
+    tr,
+    td,
+    th,
+    strong,
+    em,
+    del,
+    a,
+    blockquote,
+    pre,
+    code,
   )
 where
 
@@ -203,7 +222,7 @@ diffChildren oldChildren newChildren =
 
 -- Apply patches to actual DOM (conceptual)
 applyPatches :: VNode -> [Patch] -> VNode
-applyPatches node patches = foldl applyPatch node patches
+applyPatches = foldl applyPatch
 
 applyPatch :: VNode -> Patch -> VNode
 applyPatch _ (Replace newNode) = newNode

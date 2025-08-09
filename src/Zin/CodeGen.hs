@@ -103,7 +103,7 @@ insertTag tagName start end text =
    in before <> "<" <> tagName <> ">" <> middle <> "</" <> getTagName tagName <> ">" <> after
 
 getTagName :: Text -> Text
-getTagName tagWithAttrs = T.takeWhile (/= ' ') tagWithAttrs
+getTagName = T.takeWhile (/= ' ')
 
 escapeHTML :: Text -> Text
 escapeHTML =

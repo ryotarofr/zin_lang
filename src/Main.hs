@@ -3,10 +3,9 @@
 
 module Main where
 
-import Control.Monad (when)
+import Control.Monad (unless)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Data.Time (defaultTimeLocale, formatTime, getCurrentTime)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Environment (getArgs)
 import System.Exit (exitFailure, exitSuccess)
@@ -71,7 +70,7 @@ main = do
 compileFile :: String -> String -> IO ()
 compileFile inputPath outputPath = do
   fileExists <- doesFileExist inputPath
-  when (not fileExists) $ do
+  unless fileExists $ do
     putStrLn $ "Error: File not found: " ++ inputPath
     exitFailure
     
@@ -99,7 +98,7 @@ compileZin input = do
 compileFileIncremental :: CompilationMode -> String -> String -> IO ()
 compileFileIncremental mode inputPath outputPath = do
   fileExists <- doesFileExist inputPath
-  when (not fileExists) $ do
+  unless fileExists $ do
     putStrLn $ "Error: File not found: " ++ inputPath
     exitFailure
   

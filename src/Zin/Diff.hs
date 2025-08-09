@@ -101,14 +101,14 @@ diffChunks oldChunks newChunks =
    in concatMap (classifyChunkChange oldMap newMap) uniqueIds
 
 classifyChunkChange :: Map ChunkId TextChunk -> Map ChunkId TextChunk -> ChunkId -> [ChunkChange]
-classifyChunkChange oldMap newMap chunkId =
-  case (Map.lookup chunkId oldMap, Map.lookup chunkId newMap) of
-    (Nothing, Just newChunk) -> [ChunkChangeAdded chunkId newChunk]
-    (Just oldChunk, Nothing) -> [ChunkChangeDeleted chunkId oldChunk]
+classifyChunkChange oldMap newMap newChunkId =
+  case (Map.lookup newChunkId oldMap, Map.lookup newChunkId newMap) of
+    (Nothing, Just newChunk) -> [ChunkChangeAdded newChunkId newChunk]
+    (Just oldChunk, Nothing) -> [ChunkChangeDeleted newChunkId oldChunk]
     (Just oldChunk, Just newChunk) ->
       if chunkContent oldChunk == chunkContent newChunk
-        then [ChunkChangeUnchanged chunkId newChunk]
-        else [ChunkChangeModified chunkId oldChunk newChunk]
+        then [ChunkChangeUnchanged newChunkId newChunk]
+        else [ChunkChangeModified newChunkId oldChunk newChunk]
     (Nothing, Nothing) -> [] -- Should not happen
 
 -- 行単位の差分計算（Myers algorithmの簡易版）
@@ -184,9 +184,9 @@ editOpsToLineChanges = map editOpToLineChange
 
 -- 行変更をChangeに変換
 lineChangesToChanges :: [LineChange] -> [Change]
-lineChangesToChanges lineChanges =
+lineChangesToChanges =
   -- 簡易実装：行変更からチャンク変更を推定
-  concatMap lineChangeToChange lineChanges
+  concatMap lineChangeToChange
   where
     lineChangeToChange (LineAdded _ _) = [] -- チャンクレベルの変更は別途処理
     lineChangeToChange (LineDeleted _ _) = []
@@ -197,10 +197,10 @@ lineChangesToChanges lineChanges =
 chunkChangesToChanges :: [ChunkChange] -> [Change]
 chunkChangesToChanges = map chunkChangeToChange
   where
-    chunkChangeToChange (ChunkChangeAdded chunkId chunk) = ChunkAdded chunkId chunk
-    chunkChangeToChange (ChunkChangeDeleted chunkId chunk) = ChunkRemoved chunkId
-    chunkChangeToChange (ChunkChangeModified chunkId oldChunk newChunk) = ChunkModified chunkId oldChunk newChunk
-    chunkChangeToChange (ChunkChangeMoved chunkId fromPos toPos) = ChunkMoved chunkId fromPos toPos
+    chunkChangeToChange (ChunkChangeAdded newChunkId chunk) = ChunkAdded newChunkId chunk
+    chunkChangeToChange (ChunkChangeDeleted newChunkId _) = ChunkRemoved newChunkId
+    chunkChangeToChange (ChunkChangeModified newChunkId oldChunk newChunk) = ChunkModified newChunkId oldChunk newChunk
+    chunkChangeToChange (ChunkChangeMoved newChunkId fromPos toPos) = ChunkMoved newChunkId fromPos toPos
     chunkChangeToChange (ChunkChangeUnchanged _ _) = ChunkAdded (ChunkId "") (TextChunk (ChunkId "") "" 0 0 0) -- ダミー
 
 -- 差分統計の計算
@@ -273,17 +273,12 @@ optimizeDiff diffResult =
 
 -- 変更の最適化
 optimizeChanges :: [Change] -> [Change]
-optimizeChanges changes =
-  -- 連続する変更をマージ
-  mergeConsecutiveChanges changes
-
-mergeConsecutiveChanges :: [Change] -> [Change]
-mergeConsecutiveChanges [] = []
-mergeConsecutiveChanges [change] = [change]
-mergeConsecutiveChanges (change1 : change2 : rest) =
+optimizeChanges [] = []
+optimizeChanges [change] = [change]
+optimizeChanges (change1 : change2 : rest) =
   case tryMergeChanges change1 change2 of
-    Just merged -> mergeConsecutiveChanges (merged : rest)
-    Nothing -> change1 : mergeConsecutiveChanges (change2 : rest)
+    Just merged -> optimizeChanges (merged : rest)
+    Nothing -> change1 : optimizeChanges (change2 : rest)
 
 tryMergeChanges :: Change -> Change -> Maybe Change
 tryMergeChanges (ChunkAdded id1 chunk1) (ChunkAdded id2 chunk2) =

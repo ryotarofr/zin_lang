@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Zin.Incremental
   ( ChunkId (..),
@@ -135,22 +134,22 @@ emptyCompilerState = do
 
 -- チャンクが有効かどうかチェック
 isChunkValid :: ChunkId -> CompilerState -> Bool
-isChunkValid chunkId state =
-  case Map.lookup chunkId (stateChunks state) of
+isChunkValid newChunkId state =
+  case Map.lookup newChunkId (stateChunks state) of
     Nothing -> False
-    Just chunk ->
-      let deps = Map.findWithDefault [] chunkId (stateDependencies state)
+    Just _ ->
+      let deps = Map.findWithDefault [] newChunkId (stateDependencies state)
           depsValid = all (`Map.member` stateChunks state) deps
        in depsValid
 
 -- チャンクを無効化（依存チェーンも含む）
 invalidateChunk :: ChunkId -> CompilerState -> CompilerState
-invalidateChunk chunkId state =
+invalidateChunk newChunkId state =
   let -- 直接・間接的に依存しているチャンクを取得
-      dependents = getAllDependents chunkId state
+      dependents = getAllDependents newChunkId state
       -- チャンクとその依存者をキャッシュから削除
-      newChunks = foldr Map.delete (stateChunks state) (chunkId : dependents)
-      newCache = foldr Map.delete (stateCache state) (chunkId : dependents)
+      newChunks = foldr Map.delete (stateChunks state) (newChunkId : dependents)
+      newCache = foldr Map.delete (stateCache state) (newChunkId : dependents)
    in state
         { stateChunks = newChunks,
           stateCache = newCache
@@ -158,32 +157,32 @@ invalidateChunk chunkId state =
 
 -- すべての依存者を再帰的に取得
 getAllDependents :: ChunkId -> CompilerState -> [ChunkId]
-getAllDependents chunkId state =
-  let directDependents = Map.findWithDefault [] chunkId (stateInverseDependencies state)
+getAllDependents newChunkId state =
+  let directDependents = Map.findWithDefault [] newChunkId (stateInverseDependencies state)
       indirectDependents = concatMap (`getAllDependents` state) directDependents
    in directDependents ++ indirectDependents
 
 -- チャンクを更新
 updateChunk :: ChunkId -> CompiledChunk -> CompilerState -> IO CompilerState
-updateChunk chunkId compiledChunk state = do
+updateChunk newChunkId compiledChunk state = do
   now <- getCurrentTime
   let newState =
         state
-          { stateChunks = Map.insert chunkId compiledChunk (stateChunks state),
+          { stateChunks = Map.insert newChunkId compiledChunk (stateChunks state),
             stateLastModified = now
           }
-  return $ updateDependencies chunkId (dependencies compiledChunk) newState
+  return $ updateDependencies newChunkId (dependencies compiledChunk) newState
 
 -- 依存関係を更新
 updateDependencies :: ChunkId -> [ChunkId] -> CompilerState -> CompilerState
-updateDependencies chunkId deps state =
+updateDependencies newChunkId deps state =
   let -- 古い依存関係を削除
-      oldDeps = Map.findWithDefault [] chunkId (stateDependencies state)
-      stateWithoutOldInverse = foldr (removeInverseDependency chunkId) state oldDeps
+      oldDeps = Map.findWithDefault [] newChunkId (stateDependencies state)
+      stateWithoutOldInverse = foldr (removeInverseDependency newChunkId) state oldDeps
 
       -- 新しい依存関係を追加
-      newStateDeps = Map.insert chunkId deps (stateDependencies stateWithoutOldInverse)
-      newStateInverse = foldr (addInverseDependency chunkId) stateWithoutOldInverse deps
+      newStateDeps = Map.insert newChunkId deps (stateDependencies stateWithoutOldInverse)
+      newStateInverse = foldr (addInverseDependency newChunkId) stateWithoutOldInverse deps
    in newStateInverse {stateDependencies = newStateDeps}
 
 -- 逆依存関係を追加
