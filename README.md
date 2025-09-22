@@ -1,8 +1,6 @@
 # Zin
 
-**Zin**は、シンプルで直感的なマークアップ言語です。
-
-(最小限のコードからいい感じのマークアップファイルを生成するような仕組みを目指したい)
+シンプルで直感的なマークアップ言語
 
 ## 🏗️ アーキテクチャ
 
@@ -21,7 +19,7 @@ zin → Lexer → Parser → Semantic → CodeGen/VirtualDOM → HTML
 
 ## 📚 サンプルコード
 
-詳しくは [zin ファイル](https://github.com/ryotarofr/zin_lang/blob/main/mock/example_simple.zin)参照
+[sample](https://github.com/ryotarofr/zin_lang/blob/main/mock/example_simple.zin)
 
 ```zin
 h1 bold[0:15] : Getting Started with Zin
