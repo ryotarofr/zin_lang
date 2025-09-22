@@ -40,7 +40,7 @@ cb lang[python]:
 : def fibonacci(n)
 :    if n <= 1:
 :      return n
-:    return fibonacci(n- ibonacci(n-2))
+:    return fibonacci(n- fibonacci(n-2))
 
 t : | Framework | Performance | Learning Curve |
 r : | React | High | Medium |
